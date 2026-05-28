@@ -309,7 +309,8 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         time.sleep(5)
 
         log("Obteniendo coberturas Sancor...")
-        cotizador.wait_for_selector("text=Max Premium", timeout=30000)
+        # Esperar que carguen las tarjetas de cobertura (más robusto que buscar un nombre específico)
+        cotizador.wait_for_selector('div[data-name="nf-check"]', timeout=60000)
         cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
         time.sleep(3)
 
