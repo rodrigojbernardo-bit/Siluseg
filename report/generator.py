@@ -115,28 +115,33 @@ def generar_pdf(resultados_por_aseguradora, info, output_path):
         from weasyprint import HTML as WeasyHTML
         WeasyHTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf(str(output_path))
         return
-    except ImportError:
-        pass  # weasyprint no instalado, usar método alternativo
+    except Exception:
+        pass  # weasyprint no instalado o falló, usar método alternativo
 
-    # Fallback: script externo con playwright en proceso limpio
+    # Fallback: subprocess con async_playwright + asyncio.run (compatible Python 3.14)
     _generar_via_script(html, output_path)
 
 
 def _generar_via_script(html: str, output_path):
     """Corre la conversión HTML→PDF en un proceso Python completamente nuevo."""
     script = (
-        "import sys\n"
-        "from playwright.sync_api import sync_playwright\n"
-        "html_file, out = sys.argv[1], sys.argv[2]\n"
-        "content = open(html_file, encoding='utf-8').read()\n"
-        "with sync_playwright() as p:\n"
-        "    b = p.chromium.launch()\n"
-        "    pg = b.new_page()\n"
-        "    pg.set_content(content, wait_until='domcontentloaded')\n"
-        "    pg.wait_for_timeout(2500)\n"
-        "    pg.pdf(path=out, format='A4', landscape=True, print_background=True,\n"
-        "           margin={'top':'0','right':'0','bottom':'0','left':'0'})\n"
-        "    b.close()\n"
+        "import sys, asyncio\n"
+        "from playwright.async_api import async_playwright\n"
+        "\n"
+        "async def run(html_file, out):\n"
+        "    content = open(html_file, encoding='utf-8').read()\n"
+        "    async with async_playwright() as p:\n"
+        "        b = await p.chromium.launch()\n"
+        "        pg = await b.new_page()\n"
+        "        await pg.set_content(content, wait_until='domcontentloaded')\n"
+        "        await pg.wait_for_timeout(2500)\n"
+        "        await pg.pdf(\n"
+        "            path=out, format='A4', landscape=True,\n"
+        "            print_background=True,\n"
+        "            margin={'top':'0','right':'0','bottom':'0','left':'0'})\n"
+        "        await b.close()\n"
+        "\n"
+        "asyncio.run(run(sys.argv[1], sys.argv[2]))\n"
     )
 
     tmp_py  = None
