@@ -10,7 +10,6 @@ from jinja2 import Environment, FileSystemLoader
 
 TEMPLATE_DIR = Path(__file__).parent
 LOGO_PATH    = Path(__file__).parent.parent / "Siluseg - Logo TARJETA OK.jpg"
-PDF_WORKER   = Path(__file__).parent / "pdf_worker.py"
 
 ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
 COLORES = {
@@ -111,9 +110,44 @@ def generar_pdf(resultados_por_aseguradora, info, output_path):
         total         = len(rows),
     )
 
-    # Generar PDF en subproceso aislado — sin conflicto de event loops ni greenlets
+    # HTML → PDF con weasyprint (sin browser, sin asyncio, sin conflictos)
+    try:
+        from weasyprint import HTML as WeasyHTML
+        WeasyHTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf(str(output_path))
+        return
+    except ImportError:
+        pass  # weasyprint no instalado, usar método alternativo
+
+    # Fallback: script externo con playwright en proceso limpio
+    _generar_via_script(html, output_path)
+
+
+def _generar_via_script(html: str, output_path):
+    """Corre la conversión HTML→PDF en un proceso Python completamente nuevo."""
+    script = (
+        "import sys\n"
+        "from playwright.sync_api import sync_playwright\n"
+        "html_file, out = sys.argv[1], sys.argv[2]\n"
+        "content = open(html_file, encoding='utf-8').read()\n"
+        "with sync_playwright() as p:\n"
+        "    b = p.chromium.launch()\n"
+        "    pg = b.new_page()\n"
+        "    pg.set_content(content, wait_until='domcontentloaded')\n"
+        "    pg.wait_for_timeout(2500)\n"
+        "    pg.pdf(path=out, format='A4', landscape=True, print_background=True,\n"
+        "           margin={'top':'0','right':'0','bottom':'0','left':'0'})\n"
+        "    b.close()\n"
+    )
+
+    tmp_py  = None
     tmp_html = None
     try:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.py', delete=False, encoding='utf-8'
+        ) as f:
+            f.write(script)
+            tmp_py = f.name
+
         with tempfile.NamedTemporaryFile(
             mode='w', suffix='.html', delete=False, encoding='utf-8'
         ) as f:
@@ -121,18 +155,18 @@ def generar_pdf(resultados_por_aseguradora, info, output_path):
             tmp_html = f.name
 
         result = subprocess.run(
-            [sys.executable, str(PDF_WORKER), tmp_html, str(output_path)],
-            capture_output=True,
-            text=True,
-            timeout=120,
+            [sys.executable, tmp_py, tmp_html, str(output_path)],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, 'PYTHONPATH': ''},
         )
         if result.returncode != 0:
             raise RuntimeError(
-                f"pdf_worker falló (código {result.returncode}):\n{result.stderr}"
+                f"Generación de PDF falló (código {result.returncode}):\n{result.stderr}"
             )
     finally:
-        if tmp_html:
-            try:
-                os.unlink(tmp_html)
-            except OSError:
-                pass
+        for f in (tmp_py, tmp_html):
+            if f:
+                try:
+                    os.unlink(f)
+                except OSError:
+                    pass
