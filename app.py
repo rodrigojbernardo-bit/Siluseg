@@ -125,9 +125,22 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         cotizador.click(
             "#select2-sourceProducers-results .select2-results__option:not(.select2-results__option--disabled)"
         )
-        time.sleep(1)
+        # El portal puede redirigir o recargar tras elegir el productor
+        time.sleep(3)
+        try:
+            cotizador.wait_for_load_state("networkidle", timeout=8000)
+        except Exception:
+            pass
+
+        # Si la página se cerró, intentar recuperarla del contexto
+        if cotizador.is_closed():
+            paginas = context.pages
+            cotizador = paginas[-1] if paginas else cotizador
+            cotizador.wait_for_load_state("load", timeout=15000)
+            time.sleep(2)
 
         log("Seleccionando ramo Automotores...")
+        cotizador.wait_for_selector("#select2-sourceBranches-container", timeout=10000)
         cotizador.click("#select2-sourceBranches-container")
         time.sleep(1)
         cotizador.wait_for_selector(
