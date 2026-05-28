@@ -407,6 +407,17 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         if fedpat_thread and fedpat_thread.is_alive():
             log("ADVERTENCIA: Federación Patronal no terminó a tiempo, se omite del PDF.")
 
+        # Cerrar browser Sancor antes del PDF para evitar conflicto asyncio/sync playwright
+        try:
+            if browser:
+                browser.close()
+                browser = None
+            if pw:
+                pw.stop()
+                pw = None
+        except Exception:
+            pass
+
         # ── Generar PDF ───────────────────────────────────────────────────────
         info = {
             "vehiculo": f"{marca} {modelo_elegido}",
