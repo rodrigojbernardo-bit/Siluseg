@@ -1,13 +1,16 @@
-import asyncio
+import os
 import re
+import sys
 import base64
+import tempfile
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
-from playwright.async_api import async_playwright
 
 TEMPLATE_DIR = Path(__file__).parent
 LOGO_PATH    = Path(__file__).parent.parent / "Siluseg - Logo TARJETA OK.jpg"
+PDF_WORKER   = Path(__file__).parent / "pdf_worker.py"
 
 ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
 COLORES = {
@@ -40,22 +43,6 @@ def _logo_b64():
     if LOGO_PATH.exists():
         return base64.b64encode(LOGO_PATH.read_bytes()).decode()
     return None
-
-
-async def _html_to_pdf(html: str, output_path: str) -> None:
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        page    = await browser.new_page()
-        await page.set_content(html, wait_until='domcontentloaded')
-        await page.wait_for_timeout(2500)   # esperar que carguen las Google Fonts
-        await page.pdf(
-            path=output_path,
-            format='A4',
-            landscape=True,
-            print_background=True,
-            margin={'top': '0', 'right': '0', 'bottom': '0', 'left': '0'},
-        )
-        await browser.close()
 
 
 def generar_pdf(resultados_por_aseguradora, info, output_path):
@@ -124,11 +111,28 @@ def generar_pdf(resultados_por_aseguradora, info, output_path):
         total         = len(rows),
     )
 
-    # HTML → PDF con loop asyncio propio (no interfiere con sync_playwright de los scrapers)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # Generar PDF en subproceso aislado — sin conflicto de event loops ni greenlets
+    tmp_html = None
     try:
-        loop.run_until_complete(_html_to_pdf(html, str(output_path)))
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.html', delete=False, encoding='utf-8'
+        ) as f:
+            f.write(html)
+            tmp_html = f.name
+
+        result = subprocess.run(
+            [sys.executable, str(PDF_WORKER), tmp_html, str(output_path)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"pdf_worker falló (código {result.returncode}):\n{result.stderr}"
+            )
     finally:
-        loop.close()
-        asyncio.set_event_loop(None)
+        if tmp_html:
+            try:
+                os.unlink(tmp_html)
+            except OSError:
+                pass
