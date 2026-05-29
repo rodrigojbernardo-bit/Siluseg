@@ -607,7 +607,7 @@ def descargar_pdf(filename):
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     import webbrowser
-    threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
+    threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5001")).start()
     print("\n  Cotizador Siluseg - Sancor - Meridional - Federacion Patronal")
-    print("  http://127.0.0.1:5000\n")
+    print("  http://127.0.0.1:5001\n")
     app.run(debug=False, host="127.0.0.1", port=5001, threaded=True)
