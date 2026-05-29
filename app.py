@@ -7,16 +7,103 @@ import time
 import queue
 import json
 import re
+import os
+import sys
+import subprocess
 from pathlib import Path
-from report.pdf_gen import generar_pdf, parse_precio
 from scrapers import meridional, fedpat
 
 
-def _generar_pdf_proceso(resultados, info, output_path_str):
-    """Corre generar_pdf en un proceso separado para evitar conflicto con asyncio."""
-    from report.pdf_gen import generar_pdf
-    from pathlib import Path
-    generar_pdf(resultados, info, Path(output_path_str))
+# ── Helpers PDF ───────────────────────────────────────────────────────────────
+
+_LOGO_PATH  = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
+_PDF_WORKER = Path(__file__).parent / "report" / "pdf_worker_rl.py"
+_ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
+
+
+def parse_precio(texto):
+    """'$ 321.543,37 x mes' → 321543.37"""
+    if not texto:
+        return None
+    limpio = texto.replace('\xa0', '').replace(' ', '')
+    match = re.search(r'\$([\d.]+),(\d+)', limpio)
+    if match:
+        entero = match.group(1).replace('.', '')
+        return float(f"{entero}.{match.group(2)}")
+    return None
+
+
+def _fmt(valor):
+    if valor is None:
+        return None
+    return f"${int(round(valor)):,}".replace(',', '.')
+
+
+def _generar_pdf(resultados_por_aseguradora, info, output_path):
+    aseguradoras_activas = [
+        a for a in _ASEGURADORAS
+        if resultados_por_aseguradora.get(a, {}).get('ok') and
+           resultados_por_aseguradora[a].get('coberturas')
+    ]
+
+    coberturas_vistas = []
+    seen = set()
+    for a in aseguradoras_activas:
+        for c in resultados_por_aseguradora[a]['coberturas']:
+            if c['nombre'] not in seen:
+                coberturas_vistas.append(c['nombre'])
+                seen.add(c['nombre'])
+
+    rows = []
+    for nombre in coberturas_vistas:
+        precios_raw = {}
+        deducible = ''
+        for a in aseguradoras_activas:
+            for c in resultados_por_aseguradora[a]['coberturas']:
+                if c['nombre'] == nombre:
+                    precios_raw[a] = c['precio']
+                    if not deducible and c.get('deducible'):
+                        deducible = c['deducible']
+        precios_validos = {a: v for a, v in precios_raw.items() if v}
+        mejor = min(precios_validos, key=precios_validos.get) if precios_validos else None
+        rows.append({
+            'cobertura': nombre,
+            'deducible': deducible,
+            'precios':   {a: _fmt(precios_raw.get(a)) for a in aseguradoras_activas},
+            'mejor':     mejor,
+        })
+
+    wins = {a: 0 for a in aseguradoras_activas}
+    for row in rows:
+        if row['mejor']:
+            wins[row['mejor']] += 1
+    mejor_general = max(wins, key=wins.get) if wins else None
+    mejor_wins    = wins.get(mejor_general, 0) if mejor_general else 0
+
+    data = {
+        'aseguradoras': aseguradoras_activas,
+        'rows':         rows,
+        'info':         info,
+        'mejor_general': mejor_general,
+        'mejor_wins':    mejor_wins,
+        'logo_path':     str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
+    }
+
+    result = subprocess.run(
+        [sys.executable, str(_PDF_WORKER), str(output_path)],
+        input=json.dumps(data, ensure_ascii=False),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=os.environ.copy(),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Error generando PDF (código {result.returncode}):\n{result.stderr}"
+        )
+
+
+# ── App Flask ─────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
 
@@ -408,7 +495,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         if fedpat_thread and fedpat_thread.is_alive():
             log("ADVERTENCIA: Federación Patronal no terminó a tiempo, se omite del PDF.")
 
-        # Cerrar browser Sancor antes del PDF para evitar conflicto asyncio/sync playwright
+        # Cerrar browser Sancor antes del PDF
         try:
             if browser:
                 browser.close()
@@ -428,10 +515,9 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
             "dni":      dni,
         }
 
-        # Mostrar estado de cada aseguradora para facilitar el debug
         for aseg, datos in s["resultados"].items():
-            ok  = datos.get("ok", False)
-            err = datos.get("error", "")
+            ok   = datos.get("ok", False)
+            err  = datos.get("error", "")
             ncob = len(datos.get("coberturas", []))
             if ok:
                 log(f"  ✓ {aseg}: {ncob} coberturas")
@@ -440,15 +526,15 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
 
         log("Generando PDF comparativo...")
         filename = f"Cotizacion_Siluseg_{uuid.uuid4().hex[:8].upper()}.pdf"
-        destino = DOWNLOADS_DIR / filename
+        destino  = DOWNLOADS_DIR / filename
 
         pdf_error = []
         def _run_pdf():
             try:
-                generar_pdf(s["resultados"], info, destino)
+                _generar_pdf(s["resultados"], info, destino)
             except Exception as e:
-                # Mostrar el error real sin ruido de contexto de playwright
                 pdf_error.append(f"{type(e).__name__}: {e}")
+
         t = threading.Thread(target=_run_pdf)
         t.start()
         t.join(timeout=90)
@@ -464,11 +550,15 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
 
     except Exception as e:
         import traceback
+        # Limpiar cadena de excepciones para no mostrar errores de playwright de otros hilos
+        e.__context__ = None
         tb = traceback.format_exc()
         log(f"ERROR: {tb}")
-        # Guardar en archivo para debug
-        with open("C:/Users/User/Desktop/Cotizador Siluseg/error_log.txt", "a") as f:
-            f.write(f"\n{'='*50}\n{tb}\n")
+        try:
+            with open("C:/Users/User/Desktop/Cotizador Siluseg/error_log.txt", "a") as f:
+                f.write(f"\n{'='*50}\n{tb}\n")
+        except Exception:
+            pass
         q.put({"type": "error", "msg": str(e)})
         s["status"] = "error"
     finally:
@@ -553,7 +643,7 @@ def eventos(session_id):
 @app.route("/api/seleccionar-modelo", methods=["POST"])
 def seleccionar_modelo():
     data = request.json or {}
-    session_id  = data.get("session_id")
+    session_id   = data.get("session_id")
     modelo_index = data.get("modelo_index")
 
     if session_id not in sessions:
