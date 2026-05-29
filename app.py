@@ -446,16 +446,16 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         def _run_pdf():
             try:
                 generar_pdf(s["resultados"], info, destino)
-            except Exception:
-                import traceback
-                pdf_error.append(traceback.format_exc())
+            except Exception as e:
+                # Mostrar el error real sin ruido de contexto de playwright
+                pdf_error.append(f"{type(e).__name__}: {e}")
         t = threading.Thread(target=_run_pdf)
         t.start()
         t.join(timeout=90)
         if t.is_alive():
             raise Exception("Error PDF: tiempo de espera agotado (90s)")
         if pdf_error:
-            raise Exception(f"Error PDF:\n{pdf_error[0]}")
+            raise Exception(f"Error PDF: {pdf_error[0]}")
 
         s["pdf_filename"] = filename
         s["status"] = "completado"
