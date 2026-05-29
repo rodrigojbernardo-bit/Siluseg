@@ -442,17 +442,20 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         filename = f"Cotizacion_Siluseg_{uuid.uuid4().hex[:8].upper()}.pdf"
         destino = DOWNLOADS_DIR / filename
 
-        p = multiprocessing.Process(
-            target=_generar_pdf_proceso,
-            args=(s["resultados"], info, str(destino)),
-        )
-        p.start()
-        p.join(timeout=90)
-        if p.is_alive():
-            p.kill()
+        pdf_error = []
+        def _run_pdf():
+            try:
+                generar_pdf(s["resultados"], info, destino)
+            except Exception:
+                import traceback
+                pdf_error.append(traceback.format_exc())
+        t = threading.Thread(target=_run_pdf)
+        t.start()
+        t.join(timeout=90)
+        if t.is_alive():
             raise Exception("Error PDF: tiempo de espera agotado (90s)")
-        if p.exitcode != 0:
-            raise Exception(f"Error PDF: el proceso falló con código {p.exitcode}")
+        if pdf_error:
+            raise Exception(f"Error PDF:\n{pdf_error[0]}")
 
         s["pdf_filename"] = filename
         s["status"] = "completado"
