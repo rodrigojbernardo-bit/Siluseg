@@ -1,3 +1,4 @@
+print("=== SILUSEG APP v4 - SIN DEPENDENCIA DE GENERATOR.PY ===")
 from flask import Flask, request, jsonify, send_file, render_template, Response
 from playwright.sync_api import sync_playwright
 import threading
@@ -550,13 +551,15 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
 
     except Exception as e:
         import traceback
-        # Limpiar cadena de excepciones para no mostrar errores de playwright de otros hilos
-        e.__context__ = None
-        tb = traceback.format_exc()
-        log(f"ERROR: {tb}")
+        # Mostrar el error real sin cadena de excepciones de otros hilos
+        error_directo = f"TIPO: {type(e).__name__}\nMENSAJE: {e}"
+        ctx = getattr(e, '__context__', None)
+        if ctx:
+            error_directo += f"\nCONTEXTO PREVIO: {type(ctx).__name__}: {ctx}"
+        log(f"ERROR REAL: {error_directo}")
         try:
             with open("C:/Users/User/Desktop/Cotizador Siluseg/error_log.txt", "a") as f:
-                f.write(f"\n{'='*50}\n{tb}\n")
+                f.write(f"\n{'='*50}\n{error_directo}\n")
         except Exception:
             pass
         q.put({"type": "error", "msg": str(e)})
