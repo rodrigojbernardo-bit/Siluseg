@@ -8,13 +8,13 @@ import queue
 import json
 import re
 from pathlib import Path
-from report.generator import generar_pdf, parse_precio
+from report.pdf_gen import generar_pdf, parse_precio
 from scrapers import meridional, fedpat
 
 
 def _generar_pdf_proceso(resultados, info, output_path_str):
     """Corre generar_pdf en un proceso separado para evitar conflicto con asyncio."""
-    from report.generator import generar_pdf
+    from report.pdf_gen import generar_pdf
     from pathlib import Path
     generar_pdf(resultados, info, Path(output_path_str))
 
