@@ -539,12 +539,15 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
 
         pdf_error = []
         def _run_pdf():
+            log(">>> [V4] _run_pdf iniciado")
             print(f"\n[DEBUG _run_pdf] Iniciando hilo PDF...", flush=True)
             try:
                 _generar_pdf(s["resultados"], info, destino)
+                log(">>> [V4] _generar_pdf OK")
                 print(f"[DEBUG _run_pdf] _generar_pdf completó sin excepciones", flush=True)
             except Exception as e:
                 import traceback
+                log(f">>> [V4] ERROR en _generar_pdf: {type(e).__name__}: {e}")
                 print(f"[DEBUG _run_pdf] EXCEPCION: {type(e).__name__}: {e}", flush=True)
                 traceback.print_exc()
                 pdf_error.append(f"{type(e).__name__}: {e}")
