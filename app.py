@@ -41,6 +41,9 @@ def _fmt(valor):
 
 
 def _generar_pdf(resultados_por_aseguradora, info, output_path):
+    print(f"\n[DEBUG _generar_pdf] INICIO - worker: {_PDF_WORKER}", flush=True)
+    print(f"[DEBUG _generar_pdf] worker existe: {_PDF_WORKER.exists()}", flush=True)
+
     aseguradoras_activas = [
         a for a in _ASEGURADORAS
         if resultados_por_aseguradora.get(a, {}).get('ok') and
@@ -90,6 +93,8 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
         'logo_path':     str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
     }
 
+    print(f"[DEBUG _generar_pdf] Aseguradoras activas: {aseguradoras_activas}", flush=True)
+    print(f"[DEBUG _generar_pdf] Llamando subprocess...", flush=True)
     result = subprocess.run(
         [sys.executable, str(_PDF_WORKER), str(output_path)],
         input=json.dumps(data, ensure_ascii=False),
@@ -98,10 +103,13 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
         timeout=60,
         env=os.environ.copy(),
     )
+    print(f"[DEBUG _generar_pdf] Subprocess retornó: {result.returncode}", flush=True)
     if result.returncode != 0:
+        print(f"[DEBUG _generar_pdf] STDERR: {result.stderr[:500]}", flush=True)
         raise RuntimeError(
             f"Error generando PDF (código {result.returncode}):\n{result.stderr}"
         )
+    print(f"[DEBUG _generar_pdf] PDF generado OK en {output_path}", flush=True)
 
 
 # ── App Flask ─────────────────────────────────────────────────────────────────
@@ -531,9 +539,14 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
 
         pdf_error = []
         def _run_pdf():
+            print(f"\n[DEBUG _run_pdf] Iniciando hilo PDF...", flush=True)
             try:
                 _generar_pdf(s["resultados"], info, destino)
+                print(f"[DEBUG _run_pdf] _generar_pdf completó sin excepciones", flush=True)
             except Exception as e:
+                import traceback
+                print(f"[DEBUG _run_pdf] EXCEPCION: {type(e).__name__}: {e}", flush=True)
+                traceback.print_exc()
                 pdf_error.append(f"{type(e).__name__}: {e}")
 
         t = threading.Thread(target=_run_pdf)
