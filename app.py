@@ -534,31 +534,17 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
                 log(f"  ✗ {aseg}: ERROR - {err}")
 
         log("Generando PDF comparativo...")
+        log(">>> [V4] paso 1: creando filename")
         filename = f"Cotizacion_Siluseg_{uuid.uuid4().hex[:8].upper()}.pdf"
         destino  = DOWNLOADS_DIR / filename
-
-        pdf_error = []
-        def _run_pdf():
-            log(">>> [V4] _run_pdf iniciado")
-            print(f"\n[DEBUG _run_pdf] Iniciando hilo PDF...", flush=True)
-            try:
-                _generar_pdf(s["resultados"], info, destino)
-                log(">>> [V4] _generar_pdf OK")
-                print(f"[DEBUG _run_pdf] _generar_pdf completó sin excepciones", flush=True)
-            except Exception as e:
-                import traceback
-                log(f">>> [V4] ERROR en _generar_pdf: {type(e).__name__}: {e}")
-                print(f"[DEBUG _run_pdf] EXCEPCION: {type(e).__name__}: {e}", flush=True)
-                traceback.print_exc()
-                pdf_error.append(f"{type(e).__name__}: {e}")
-
-        t = threading.Thread(target=_run_pdf)
-        t.start()
-        t.join(timeout=90)
-        if t.is_alive():
-            raise Exception("Error PDF: tiempo de espera agotado (90s)") from None
-        if pdf_error:
-            raise Exception(f"Error PDF: {pdf_error[0]}") from None
+        log(f">>> [V4] paso 2: destino={destino}")
+        log(">>> [V4] paso 3: llamando _generar_pdf directamente (sin hilo)")
+        try:
+            _generar_pdf(s["resultados"], info, destino)
+            log(">>> [V4] paso 4: _generar_pdf OK")
+        except Exception as pdf_exc:
+            log(f">>> [V4] paso 4: ERROR: {type(pdf_exc).__name__}: {pdf_exc}")
+            raise Exception(f"Error PDF: {type(pdf_exc).__name__}: {pdf_exc}") from None
 
         s["pdf_filename"] = filename
         s["status"] = "completado"
