@@ -97,44 +97,46 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         page.click('span.app-sidebar__item-text:has-text("Cotizadores")')
         time.sleep(2)
 
-        log('Abriendo Autos...')
-        page.click('span.app-sidebar__item-text:has-text("Autos")')
-        page.wait_for_load_state('load', timeout=30000)
+        log('Abriendo Autos (nueva pestaña)...')
+        with context.expect_page() as nueva_pestaña:
+            page.click('span.app-sidebar__item-text:has-text("Autos")')
+        cotizador = nueva_pestaña.value
+        cotizador.wait_for_load_state('load', timeout=30000)
         time.sleep(4)
-        log(f'URL cotizador: {page.url}')
+        log(f'URL cotizador: {cotizador.url}')
 
         # Esperar que el formulario cargue
-        page.wait_for_selector('#s2id_coUnidadNegocio', timeout=20000)
+        cotizador.wait_for_selector('#s2id_coUnidadNegocio', timeout=20000)
         time.sleep(2)
 
         # ── UNIDAD DE NEGOCIO ─────────────────────────────────────────────────
         log('Seleccionando Unidad de Negocio: PRODUCTORES MENSUAL...')
-        _select2_open(page, 'coUnidadNegocio')
-        _select2_pick(page, 'PRODUCTORES MENSUAL', 'PRODUCTORES MENSUAL')
+        _select2_open(cotizador, 'coUnidadNegocio')
+        _select2_pick(cotizador, 'PRODUCTORES MENSUAL', 'PRODUCTORES MENSUAL')
         log('Unidad de negocio OK.')
         time.sleep(1)
 
         # ── PROVINCIA ─────────────────────────────────────────────────────────
         log(f'Seleccionando provincia: {provincia}...')
-        _select2_open(page, 'coProvincia')
-        _select2_pick(page, provincia, provincia)
+        _select2_open(cotizador, 'coProvincia')
+        _select2_pick(cotizador, provincia, provincia)
         log(f'Provincia OK: {provincia}')
         time.sleep(2)  # esperar que carguen las localidades dependientes
 
         # ── LOCALIDAD (búsqueda remota — mín 2 chars) ─────────────────────────
         log(f'Seleccionando localidad: {localidad}...')
-        _select2_open(page, 'coLocalidad')
-        page.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=10000)
+        _select2_open(cotizador, 'coLocalidad')
+        cotizador.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=10000)
         time.sleep(0.3)
-        search_input = page.locator('.select2-drop:not(.select2-display-none) .select2-input')
+        search_input = cotizador.locator('.select2-drop:not(.select2-display-none) .select2-input')
         search_input.fill('')
         search_input.type(localidad, delay=80)
         time.sleep(2.5)  # esperar carga remota
-        page.wait_for_selector(
+        cotizador.wait_for_selector(
             f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")',
             timeout=15000
         )
-        page.click(
+        cotizador.click(
             f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")'
         )
         time.sleep(1)
