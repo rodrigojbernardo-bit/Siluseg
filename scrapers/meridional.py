@@ -29,12 +29,12 @@ def _select2_open(page, field_id):
 def _select2_pick(page, search_text, option_text, timeout=15000):
     """Con el dropdown Select2 ya abierto: escribe para filtrar y hace click en la opción."""
     page.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=timeout)
+    time.sleep(0.5)
+    # Hacer click en el input para asegurar foco, luego tipear con eventos reales
+    page.click('.select2-drop:not(.select2-display-none) .select2-input')
     time.sleep(0.3)
-    # Limpiar y escribir en el campo de búsqueda del Select2
-    search_input = page.locator('.select2-drop:not(.select2-display-none) .select2-input')
-    search_input.fill('')
-    search_input.type(search_text, delay=60)
-    time.sleep(1.5)
+    page.keyboard.type(search_text, delay=80)
+    time.sleep(2)
     page.wait_for_selector(
         f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{option_text}")',
         timeout=timeout
@@ -127,11 +127,11 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         log(f'Seleccionando localidad: {localidad}...')
         _select2_open(cotizador, 'coLocalidad')
         cotizador.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=10000)
+        time.sleep(0.5)
+        cotizador.click('.select2-drop:not(.select2-display-none) .select2-input')
         time.sleep(0.3)
-        search_input = cotizador.locator('.select2-drop:not(.select2-display-none) .select2-input')
-        search_input.fill('')
-        search_input.type(localidad, delay=80)
-        time.sleep(2.5)  # esperar carga remota
+        cotizador.keyboard.type(localidad, delay=80)
+        time.sleep(3)  # esperar carga remota
         cotizador.wait_for_selector(
             f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")',
             timeout=15000
