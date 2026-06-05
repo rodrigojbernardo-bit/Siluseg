@@ -151,7 +151,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         # ── Arrancar scrapers paralelos ──────────────────────────────────────
         meridional_thread = threading.Thread(
             target=meridional.run,
-            args=(session_id, sessions, dni, anio, marca, modelo_busqueda),
+            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, "BUENOS AIRES", localidad),
             daemon=True,
         )
         meridional_thread.start()
