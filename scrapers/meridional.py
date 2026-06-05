@@ -20,18 +20,28 @@ def _parse_precio(texto):
         return None
 
 
+def _select2_open(page, field_id):
+    """Abre el dropdown Select2 de un campo por su ID subyacente."""
+    page.click(f'#s2id_{field_id} .select2-choice')
+    time.sleep(0.5)
+
+
 def _select2_pick(page, search_text, option_text, timeout=15000):
     """Con el dropdown Select2 ya abierto: escribe para filtrar y hace click en la opción."""
     page.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=timeout)
     time.sleep(0.3)
-    page.fill('.select2-input', '')
-    page.type('.select2-input', search_text, delay=60)
+    # Limpiar y escribir en el campo de búsqueda del Select2
+    search_input = page.locator('.select2-drop:not(.select2-display-none) .select2-input')
+    search_input.fill('')
+    search_input.type(search_text, delay=60)
     time.sleep(1.5)
     page.wait_for_selector(
-        f'div.select2-result-label:has-text("{option_text}")',
+        f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{option_text}")',
         timeout=timeout
     )
-    page.click(f'div.select2-result-label:has-text("{option_text}")')
+    page.click(
+        f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{option_text}")'
+    )
     time.sleep(1)
 
 
@@ -93,51 +103,45 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         time.sleep(4)
         log(f'URL cotizador: {page.url}')
 
-        # Esperar que aparezcan los Select2 del formulario
-        page.wait_for_selector(
-            '.select2-container:not(.select2-container-disabled)',
-            timeout=20000
-        )
+        # Esperar que el formulario cargue
+        page.wait_for_selector('#s2id_coUnidadNegocio', timeout=20000)
         time.sleep(2)
 
-        # ── UNIDAD DE NEGOCIO (1er Select2) ───────────────────────────────────
+        # ── UNIDAD DE NEGOCIO ─────────────────────────────────────────────────
         log('Seleccionando Unidad de Negocio: PRODUCTORES MENSUAL...')
-        page.locator(
-            '.select2-container:not(.select2-container-disabled) .select2-choice'
-        ).first.click()
+        _select2_open(page, 'coUnidadNegocio')
         _select2_pick(page, 'PRODUCTORES MENSUAL', 'PRODUCTORES MENSUAL')
         log('Unidad de negocio OK.')
         time.sleep(1)
 
-        # ── PROVINCIA (2do Select2) ────────────────────────────────────────────
+        # ── PROVINCIA ─────────────────────────────────────────────────────────
         log(f'Seleccionando provincia: {provincia}...')
-        page.locator(
-            '.select2-container:not(.select2-container-disabled) .select2-choice'
-        ).nth(1).click()
+        _select2_open(page, 'coProvincia')
         _select2_pick(page, provincia, provincia)
         log(f'Provincia OK: {provincia}')
         time.sleep(2)  # esperar que carguen las localidades dependientes
 
-        # ── LOCALIDAD (3er Select2 — búsqueda remota, mín 2 chars) ────────────
+        # ── LOCALIDAD (búsqueda remota — mín 2 chars) ─────────────────────────
         log(f'Seleccionando localidad: {localidad}...')
-        page.locator(
-            '.select2-container:not(.select2-container-disabled) .select2-choice'
-        ).nth(2).click()
+        _select2_open(page, 'coLocalidad')
         page.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=10000)
         time.sleep(0.3)
-        page.fill('.select2-input', '')
-        page.type('.select2-input', localidad, delay=80)
-        time.sleep(2.5)  # esperar carga remota de opciones
+        search_input = page.locator('.select2-drop:not(.select2-display-none) .select2-input')
+        search_input.fill('')
+        search_input.type(localidad, delay=80)
+        time.sleep(2.5)  # esperar carga remota
         page.wait_for_selector(
-            f'div.select2-result-label:has-text("{localidad}")',
+            f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")',
             timeout=15000
         )
-        page.click(f'div.select2-result-label:has-text("{localidad}")')
+        page.click(
+            f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")'
+        )
         time.sleep(1)
         log(f'Localidad OK: {localidad}')
 
         # ── CONTINÚA EN PRÓXIMOS PASOS ─────────────────────────────────────────
-        log('TODO: datos del vehículo, asegurado, cotizar...')
+        log('TODO: marca, año, modelo, asegurado, cotizar...')
 
     except Exception as e:
         import traceback
