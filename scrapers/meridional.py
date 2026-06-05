@@ -21,9 +21,9 @@ def _parse_precio(texto):
 
 
 def _select2_open(page, field_id):
-    """Abre el dropdown Select2 de un campo por su ID subyacente."""
-    page.click(f'#s2id_{field_id} .select2-choice')
-    time.sleep(0.5)
+    """Abre el dropdown Select2 de un campo usando la API JS de Select2."""
+    page.evaluate(f"$('#{field_id}').select2('open')")
+    time.sleep(0.8)
 
 
 def _select2_pick(page, search_text, option_text, timeout=15000):
