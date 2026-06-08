@@ -1,4 +1,4 @@
-print("=== SILUSEG APP v4 - SIN DEPENDENCIA DE GENERATOR.PY ===")
+
 from flask import Flask, request, jsonify, send_file, render_template, Response
 from playwright.sync_api import sync_playwright
 import threading
@@ -41,9 +41,6 @@ def _fmt(valor):
 
 
 def _generar_pdf(resultados_por_aseguradora, info, output_path):
-    print(f"\n[DEBUG _generar_pdf] INICIO - worker: {_PDF_WORKER}", flush=True)
-    print(f"[DEBUG _generar_pdf] worker existe: {_PDF_WORKER.exists()}", flush=True)
-
     aseguradoras_activas = [
         a for a in _ASEGURADORAS
         if resultados_por_aseguradora.get(a, {}).get('ok') and
@@ -77,24 +74,20 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
             'mejor':     mejor,
         })
 
-    wins = {a: 0 for a in aseguradoras_activas}
-    for row in rows:
-        if row['mejor']:
-            wins[row['mejor']] += 1
-    mejor_general = max(wins, key=wins.get) if wins else None
-    mejor_wins    = wins.get(mejor_general, 0) if mejor_general else 0
+    capitales = {
+        a: resultados_por_aseguradora[a].get('capital', '')
+        for a in aseguradoras_activas
+        if resultados_por_aseguradora[a].get('capital')
+    }
 
     data = {
         'aseguradoras': aseguradoras_activas,
         'rows':         rows,
         'info':         info,
-        'mejor_general': mejor_general,
-        'mejor_wins':    mejor_wins,
-        'logo_path':     str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
+        'capitales':    capitales,
+        'logo_path':    str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
     }
 
-    print(f"[DEBUG _generar_pdf] Aseguradoras activas: {aseguradoras_activas}", flush=True)
-    print(f"[DEBUG _generar_pdf] Llamando subprocess...", flush=True)
     result = subprocess.run(
         [sys.executable, str(_PDF_WORKER), str(output_path)],
         input=json.dumps(data, ensure_ascii=False),
@@ -103,13 +96,10 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
         timeout=60,
         env=os.environ.copy(),
     )
-    print(f"[DEBUG _generar_pdf] Subprocess retornó: {result.returncode}", flush=True)
     if result.returncode != 0:
-        print(f"[DEBUG _generar_pdf] STDERR: {result.stderr[:500]}", flush=True)
         raise RuntimeError(
             f"Error generando PDF (código {result.returncode}):\n{result.stderr}"
         )
-    print(f"[DEBUG _generar_pdf] PDF generado OK en {output_path}", flush=True)
 
 
 # ── App Flask ─────────────────────────────────────────────────────────────────
@@ -352,8 +342,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         s["status"] = "esperando_modelo"
         model_event.clear()
         log("Esperando selección de modelo Sancor (máx 5 min)...")
-        resultado_evento = model_event.wait(timeout=300)
-        log(f"[DEBUG] evento={resultado_evento} | modelo_index={s.get('modelo_index')} | status={s.get('status')}")
+        model_event.wait(timeout=300)
 
         if s.get("modelo_index") is None:
             raise Exception("Tiempo de espera agotado para selección de modelo Sancor.")
@@ -465,11 +454,13 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         info_json = cotizador.evaluate("""
             () => {
                 const body = document.body.innerText;
-                const capitalMatch = body.match(/Capital asegurable[:\\s]+([\\$\\d.,]+)/i);
+                const capitalMatch = body.match(
+                    /(?:Capital|Suma)\\s+asegur(?:able|ada)[^\\$\\d\\n]{0,30}\\$?\\s*([\\d.,]+)/i
+                );
                 const cotizMatch   = body.match(/N[°º]\\s*de cotizaci[oó]n[:\\s]+(\\S+)/i);
                 const clienteMatch = body.match(/Cliente[:\\s]+([A-ZÁÉÍÓÚ ]+?)(?:\\s*\\(|\\s*\\n)/i);
                 return JSON.stringify({
-                    capital:    capitalMatch ? capitalMatch[1].trim() : '',
+                    capital:    capitalMatch ? '$' + capitalMatch[1].trim() : '',
                     cotizacion: cotizMatch   ? cotizMatch[1].trim()   : '',
                     cliente:    clienteMatch ? clienteMatch[1].trim() : '',
                 });
@@ -490,6 +481,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
             "aseguradora": "Sancor",
             "ok": True,
             "coberturas": coberturas,
+            "capital": info_pagina.get("capital", ""),
         }
         log("Sancor completado.")
 
@@ -536,16 +528,11 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
                 log(f"  ✗ {aseg}: ERROR - {err}")
 
         log("Generando PDF comparativo...")
-        log(">>> [V4] paso 1: creando filename")
         filename = f"Cotizacion_Siluseg_{uuid.uuid4().hex[:8].upper()}.pdf"
         destino  = DOWNLOADS_DIR / filename
-        log(f">>> [V4] paso 2: destino={destino}")
-        log(">>> [V4] paso 3: llamando _generar_pdf directamente (sin hilo)")
         try:
             _generar_pdf(s["resultados"], info, destino)
-            log(">>> [V4] paso 4: _generar_pdf OK")
         except Exception as pdf_exc:
-            log(f">>> [V4] paso 4: ERROR: {type(pdf_exc).__name__}: {pdf_exc}")
             raise Exception(f"Error PDF: {type(pdf_exc).__name__}: {pdf_exc}") from None
 
         s["pdf_filename"] = filename

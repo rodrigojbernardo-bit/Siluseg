@@ -339,10 +339,21 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
 
         log(f'Total coberturas extraídas: {len(coberturas)}')
 
+        capital_text = cotizador.evaluate("""
+            () => {
+                const body = document.body.innerText;
+                const m = body.match(
+                    /(?:suma|capital)\\s+asegur(?:ada|able)[^\\$\\d\\n]{0,30}\\$?\\s*([\\d.,]+)/i
+                );
+                return m ? '$' + m[1].trim() : '';
+            }
+        """)
+
         sessions[session_id]['resultados']['Meridional'] = {
             'aseguradora': 'Meridional',
             'ok':          True,
             'coberturas':  coberturas,
+            'capital':     capital_text or '',
         }
         log('¡Cotización completada!')
 

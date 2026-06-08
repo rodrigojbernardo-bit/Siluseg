@@ -334,6 +334,16 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         """)
         log(f'TD3 2%: ${cuota_td3_2}')
 
+        capital_text = page.evaluate("""
+            () => {
+                const body = document.body.innerText;
+                const m = body.match(
+                    /(?:suma|capital|valor)\\s+asegur(?:ada|able|ado)[^\\$\\d\\n]{0,30}\\$?\\s*([\\d.,]+)/i
+                );
+                return m ? '$' + m[1].trim() : '';
+            }
+        """)
+
         log('Guardando cotizacion...')
         page.evaluate("window.scrollTo(0, 0)")
         time.sleep(1)
@@ -351,6 +361,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                 {'nombre': 'TD3 - 4% Franquicia', 'precio': _parse_precio(cuota_td3_4), 'deducible': 'Franquicia 4%'},
                 {'nombre': 'TD3 - 2% Franquicia', 'precio': _parse_precio(cuota_td3_2), 'deducible': 'Franquicia 2%'},
             ],
+            'capital': capital_text or '',
         }
         log('Cotizacion completada!')
 
