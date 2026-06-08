@@ -214,6 +214,14 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         cotizador.fill('input#coNroDocumento', dni)
         time.sleep(0.5)
 
+        log('Ingresando apellido...')
+        cotizador.fill('input#coApellidoRazonSocial', 'BERNARDO')
+        time.sleep(0.3)
+
+        log('Ingresando nombre...')
+        cotizador.fill('input#coNombres', 'RODRIGO BERNARDO')
+        time.sleep(0.3)
+
         log('Seleccionando estado civil: SOLTERO...')
         _select2_open(cotizador, 'coEstadoCivil')
         _select2_pick(cotizador, 'SOLTERO', 'SOLTERO')
