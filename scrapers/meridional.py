@@ -275,9 +275,33 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(1)
         cotizador.click('span:has-text("COTIZAR")')
-        cotizador.wait_for_load_state('load', timeout=30000)
+        cotizador.wait_for_load_state('networkidle', timeout=30000)
         time.sleep(5)
-        log('Cotización enviada. TODO: extraer resultados...')
+        log('Página de resultados cargada.')
+
+        # Screenshot para análisis
+        cotizador.screenshot(path='C:/Users/User/Desktop/Cotizador Siluseg/meridional_resultados.png')
+        log('Screenshot guardado en el escritorio.')
+
+        # Loguear estructura de la página para saber cómo extraer datos
+        estructura = cotizador.evaluate("""
+            () => ({
+                url: location.href,
+                titulos: Array.from(document.querySelectorAll('h1,h2,h3,h4,.panel-title,.card-title'))
+                         .map(e => e.innerText.trim()).filter(t => t).slice(0, 20),
+                tablas: Array.from(document.querySelectorAll('table')).map((t, i) => ({
+                    index: i,
+                    headers: Array.from(t.querySelectorAll('th')).map(th => th.innerText.trim()),
+                    filas: t.querySelectorAll('tbody tr').length
+                })),
+                tiene_full_car:  document.body.innerText.includes('FULL CAR'),
+                tiene_terceros:  document.body.innerText.includes('TERCEROS'),
+            })
+        """)
+        log(f'Estructura resultados: {json.dumps(estructura, ensure_ascii=False)}')
+
+        log('Esperando 60s para inspección manual...')
+        time.sleep(60)
 
     except Exception as e:
         import traceback
