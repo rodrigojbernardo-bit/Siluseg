@@ -28,20 +28,15 @@ def _select2_open(page, field_id):
 
 def _select2_pick(page, search_text, option_text, timeout=15000):
     """Con el dropdown Select2 ya abierto: escribe para filtrar y hace click en la opción."""
-    page.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=timeout)
+    page.wait_for_selector('#select2-drop', state='visible', timeout=timeout)
     time.sleep(0.5)
-    # Hacer click en el input para asegurar foco, luego tipear con eventos reales
-    page.click('.select2-drop:not(.select2-display-none) .select2-input')
-    time.sleep(0.3)
     page.keyboard.type(search_text, delay=80)
     time.sleep(2)
     page.wait_for_selector(
-        f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{option_text}")',
-        timeout=timeout
+        f'#select2-drop div.select2-result-label:has-text("{option_text}")',
+        state='visible', timeout=timeout
     )
-    page.click(
-        f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{option_text}")'
-    )
+    page.click(f'#select2-drop div.select2-result-label:has-text("{option_text}")')
     time.sleep(1)
 
 
@@ -126,19 +121,15 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         # ── LOCALIDAD (búsqueda remota — mín 2 chars) ─────────────────────────
         log(f'Seleccionando localidad: {localidad}...')
         _select2_open(cotizador, 'coLocalidad')
-        cotizador.wait_for_selector('.select2-drop:not(.select2-display-none)', timeout=10000)
+        cotizador.wait_for_selector('#select2-drop', state='visible', timeout=10000)
         time.sleep(0.5)
-        cotizador.click('.select2-drop:not(.select2-display-none) .select2-input')
-        time.sleep(0.3)
         cotizador.keyboard.type(localidad, delay=80)
         time.sleep(3)  # esperar carga remota
         cotizador.wait_for_selector(
-            f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")',
-            timeout=15000
+            f'#select2-drop div.select2-result-label:has-text("{localidad}")',
+            state='visible', timeout=15000
         )
-        cotizador.click(
-            f'.select2-drop:not(.select2-display-none) div.select2-result-label:has-text("{localidad}")'
-        )
+        cotizador.click(f'#select2-drop div.select2-result-label:has-text("{localidad}")')
         time.sleep(1)
         log(f'Localidad OK: {localidad}')
 
