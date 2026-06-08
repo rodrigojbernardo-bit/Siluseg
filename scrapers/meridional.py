@@ -134,7 +134,48 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         log(f'Localidad OK: {localidad}')
 
         # ── CONTINÚA EN PRÓXIMOS PASOS ─────────────────────────────────────────
-        log('TODO: marca, año, modelo, asegurado, cotizar...')
+        # ── DATOS DEL VEHÍCULO ────────────────────────────────────────────────
+        log('Desplazando a Datos del Vehículo...')
+        cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+        time.sleep(1)
+
+        log('Clickeando Ingreso Manual...')
+        cotizador.click('i.fa-keyboard-o')
+        time.sleep(2)
+
+        # ── MARCA ─────────────────────────────────────────────────────────────
+        log(f'Seleccionando marca: {marca}...')
+        _select2_open(cotizador, 'coMarca')
+        _select2_pick(cotizador, marca, marca)
+        log(f'Marca OK: {marca}')
+        time.sleep(1)
+
+        # ── AÑO ───────────────────────────────────────────────────────────────
+        log(f'Seleccionando año: {anio}...')
+        _select2_open(cotizador, 'coAnnoFabricacion')
+        _select2_pick(cotizador, anio, anio)
+        log(f'Año OK: {anio}')
+        time.sleep(1)
+
+        # ── MODELO (buscar y mostrar opciones) ────────────────────────────────
+        log(f'Buscando modelos para: {modelo_busqueda}...')
+        _select2_open(cotizador, 'coModelo')
+        cotizador.wait_for_selector('#select2-drop', state='visible', timeout=15000)
+        time.sleep(0.5)
+        cotizador.keyboard.type(modelo_busqueda, delay=80)
+        time.sleep(3)
+
+        modelos_raw = cotizador.evaluate("""
+            () => Array.from(document.querySelectorAll('#select2-drop div.select2-result-label'))
+                 .map((el, i) => ({ index: i, texto: el.innerText.trim() }))
+                 .filter(o => o.texto)
+        """)
+
+        log(f'Modelos encontrados ({len(modelos_raw)}):')
+        for m in modelos_raw:
+            log(f'  [{m["index"]}] {m["texto"]}')
+
+        log('TODO: seleccionar modelo...')
 
     except Exception as e:
         import traceback
