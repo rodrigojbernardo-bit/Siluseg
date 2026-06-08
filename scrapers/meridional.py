@@ -279,29 +279,72 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         time.sleep(5)
         log('Página de resultados cargada.')
 
-        # Screenshot para análisis
-        cotizador.screenshot(path='C:/Users/User/Desktop/Cotizador Siluseg/meridional_resultados.png')
-        log('Screenshot guardado en el escritorio.')
+        # ── EXTRAER COBERTURAS ────────────────────────────────────────────────
+        log('Extrayendo coberturas...')
+        coberturas_raw = cotizador.evaluate("""
+            () => {
+                const resultado = [];
 
-        # Loguear estructura de la página para saber cómo extraer datos
-        estructura = cotizador.evaluate("""
-            () => ({
-                url: location.href,
-                titulos: Array.from(document.querySelectorAll('h1,h2,h3,h4,.panel-title,.card-title'))
-                         .map(e => e.innerText.trim()).filter(t => t).slice(0, 20),
-                tablas: Array.from(document.querySelectorAll('table')).map((t, i) => ({
-                    index: i,
-                    headers: Array.from(t.querySelectorAll('th')).map(th => th.innerText.trim()),
-                    filas: t.querySelectorAll('tbody tr').length
-                })),
-                tiene_full_car:  document.body.innerText.includes('FULL CAR'),
-                tiene_terceros:  document.body.innerText.includes('TERCEROS'),
-            })
+                // Recorrer todas las tablas buscando FULL CAR y TERCEROS
+                for (const table of document.querySelectorAll('table')) {
+                    const texto = table.innerText.toUpperCase();
+                    if (!texto.includes('FULL CAR') && !texto.includes('TERCERO')) continue;
+
+                    // Detectar índices de columnas por header
+                    const ths = Array.from(table.querySelectorAll('th'))
+                                     .map(th => th.innerText.trim().toLowerCase());
+                    const iCob = ths.findIndex(h => h.includes('cobertura'));
+                    const iPremio = ths.findIndex(h => h.includes('premio'));
+                    const iImp = ths.findIndex(h => h.includes('importe'));
+
+                    for (const row of table.querySelectorAll('tbody tr')) {
+                        const cells = Array.from(row.querySelectorAll('td'))
+                                           .map(td => td.innerText.trim());
+                        if (cells.length < 2) continue;
+
+                        // Cobertura: usar columna detectada o la primera celda con texto largo
+                        const nombre = iCob >= 0 ? cells[iCob]
+                            : cells.find(c => c.length > 5 && !/^[\d.,]+$/.test(c)) || '';
+
+                        // Importe: última columna con formato número 000.000,00
+                        const precio_texto = iImp >= 0 ? cells[iImp]
+                            : [...cells].reverse().find(c => /\\d{1,3}(\\.\\d{3})+,\\d{2}/.test(c)) || '';
+
+                        const premio_texto = iPremio >= 0 ? cells[iPremio] : '';
+
+                        if (nombre && precio_texto) {
+                            resultado.push({
+                                nombre: nombre,
+                                premio: premio_texto,
+                                importe: precio_texto,
+                            });
+                        }
+                    }
+                }
+
+                return resultado;
+            }
         """)
-        log(f'Estructura resultados: {json.dumps(estructura, ensure_ascii=False)}')
 
-        log('Esperando 60s para inspección manual...')
-        time.sleep(60)
+        coberturas = []
+        for c in coberturas_raw:
+            precio = _parse_precio(c['importe'])
+            if precio:
+                coberturas.append({
+                    'nombre':    c['nombre'],
+                    'precio':    precio,
+                    'deducible': '',
+                })
+                log(f'  Cobertura: {c["nombre"]} | Premio: {c["premio"]} | Importe: {c["importe"]}')
+
+        log(f'Total coberturas extraídas: {len(coberturas)}')
+
+        sessions[session_id]['resultados']['Meridional'] = {
+            'aseguradora': 'Meridional',
+            'ok':          True,
+            'coberturas':  coberturas,
+        }
+        log('¡Cotización completada!')
 
     except Exception as e:
         import traceback
