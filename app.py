@@ -133,7 +133,7 @@ URL_LOGIN = (
 sessions = {}
 
 
-def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sexo):
+def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo):
     s = sessions[session_id]
     q = s["queue"]
     model_event = s["model_event"]
@@ -151,7 +151,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, sex
         # ── Arrancar scrapers paralelos ──────────────────────────────────────
         meridional_thread = threading.Thread(
             target=meridional.run,
-            args=(session_id, sessions, dni, anio, marca, modelo_busqueda),
+            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo),
             daemon=True,
         )
         meridional_thread.start()
@@ -596,6 +596,7 @@ def iniciar_cotizacion():
     marca    = data.get("marca", "").strip().upper()
     modelo   = data.get("modelo", "").strip().upper()
     localidad = data.get("localidad", "").strip().upper()
+    provincia = data.get("provincia", "BUENOS AIRES").strip().upper()
     sexo     = data.get("sexo", "M").strip().upper()
 
     if not all([dni, anio, marca, modelo, localidad]):
@@ -616,7 +617,7 @@ def iniciar_cotizacion():
 
     threading.Thread(
         target=run_automation,
-        args=(session_id, dni, anio, marca, modelo, localidad, sexo),
+        args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo),
         daemon=True,
     ).start()
 
