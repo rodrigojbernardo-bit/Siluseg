@@ -40,7 +40,7 @@ def _select2_pick(page, search_text, option_text, timeout=15000):
     time.sleep(1)
 
 
-def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad):
+def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M'):
     s = sessions[session_id]
     q = s['queue']
 
@@ -157,7 +157,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         log(f'Año OK: {anio}')
         time.sleep(1)
 
-        # ── MODELO (buscar y mostrar opciones) ────────────────────────────────
+        # ── MODELO ────────────────────────────────────────────────────────────
         log(f'Buscando modelos para: {modelo_busqueda}...')
         _select2_open(cotizador, 'coModelo')
         cotizador.wait_for_selector('#select2-drop', state='visible', timeout=15000)
@@ -175,7 +175,59 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         for m in modelos_raw:
             log(f'  [{m["index"]}] {m["texto"]}')
 
-        log('TODO: seleccionar modelo...')
+        # Seleccionar el primero por defecto (luego se implementará selección por usuario)
+        if modelos_raw:
+            cotizador.click(
+                f'#select2-drop div.select2-result-label:has-text("{modelos_raw[0]["texto"][:30]}")'
+            )
+            log(f'Modelo seleccionado: {modelos_raw[0]["texto"]}')
+        time.sleep(1)
+
+        # ── USO DEL VEHÍCULO ──────────────────────────────────────────────────
+        log('Seleccionando uso: PARTICULAR...')
+        _select2_open(cotizador, 'coUsoVehiculo')
+        _select2_pick(cotizador, 'PARTICULAR', 'PARTICULAR')
+        log('Uso OK.')
+        time.sleep(1)
+
+        # ── RASTREADOR ────────────────────────────────────────────────────────
+        log('Seleccionando rastreador: NO POSEE/NO INFORMA...')
+        _select2_open(cotizador, 'coRastreador')
+        _select2_pick(cotizador, 'NO POSEE', 'NO POSEE/NO INFORMA')
+        log('Rastreador OK.')
+        time.sleep(1)
+
+        # ── DATOS DEL ASEGURADO ───────────────────────────────────────────────
+        log('Desplazando a Datos del Asegurado...')
+        cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+
+        log('Clickeando Ingreso Manual (asegurado)...')
+        cotizador.locator('i.fa-keyboard-o').nth(1).click()
+        time.sleep(2)
+
+        log('Ingresando email...')
+        cotizador.fill('input#coEMail', 'info@siluseg.com.ar')
+        time.sleep(0.5)
+
+        log(f'Ingresando DNI: {dni}...')
+        cotizador.fill('input#coNroDocumento', dni)
+        time.sleep(0.5)
+
+        log('Seleccionando estado civil: SOLTERO...')
+        _select2_open(cotizador, 'coEstadoCivil')
+        _select2_pick(cotizador, 'SOLTERO', 'SOLTERO')
+        log('Estado civil OK.')
+        time.sleep(1)
+
+        sexo_meridional = 'Masculino' if sexo.upper() == 'M' else 'Femenino'
+        log(f'Seleccionando género: {sexo_meridional}...')
+        _select2_open(cotizador, 'coSexo')
+        _select2_pick(cotizador, sexo_meridional, sexo_meridional)
+        log(f'Género OK.')
+        time.sleep(1)
+
+        log('TODO: periodicidad, medio de pago, cuotas, cotizar...')
 
     except Exception as e:
         import traceback
