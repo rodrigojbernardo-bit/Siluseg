@@ -227,7 +227,49 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         log(f'Género OK.')
         time.sleep(1)
 
-        log('TODO: periodicidad, medio de pago, cuotas, cotizar...')
+        # ── FECHA DE NACIMIENTO ───────────────────────────────────────────────
+        log('Ingresando fecha de nacimiento...')
+        cotizador.fill('input#coFechaNacimiento', '01/01/1980')
+        cotizador.press('input#coFechaNacimiento', 'Tab')
+        time.sleep(0.5)
+
+        # ── DATOS DE LA OPERACIÓN ─────────────────────────────────────────────
+        log('Desplazando a Datos de la Operación...')
+        cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+
+        log('Seleccionando medio de pago: TARJETA DE CREDITO...')
+        _select2_open(cotizador, 'coMedioPago')
+        _select2_pick(cotizador, 'TARJETA', 'TARJETA DE CREDITO')
+        log('Medio de pago OK.')
+        time.sleep(1)
+
+        log('Seleccionando cuotas: 1...')
+        _select2_open(cotizador, 'coCuotas')
+        _select2_pick(cotizador, '1', '1')
+        log('Cuotas OK.')
+        time.sleep(1)
+
+        log('Seleccionando comisión: 15...')
+        _select2_open(cotizador, 'coComision')
+        _select2_pick(cotizador, '15', '15')
+        log('Comisión OK.')
+        time.sleep(1)
+
+        log('Seleccionando descuento/recargo: -10...')
+        _select2_open(cotizador, 'coPorcDescuentoRecargoPrima')
+        _select2_pick(cotizador, '-10', '-10')
+        log('Descuento/recargo OK.')
+        time.sleep(1)
+
+        # ── COTIZAR ───────────────────────────────────────────────────────────
+        log('Clickeando COTIZAR...')
+        cotizador.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+        cotizador.click('span:has-text("COTIZAR")')
+        cotizador.wait_for_load_state('load', timeout=30000)
+        time.sleep(5)
+        log('Cotización enviada. TODO: extraer resultados...')
 
     except Exception as e:
         import traceback
