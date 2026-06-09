@@ -17,17 +17,17 @@ from scrapers import meridional, fedpat
 
 # ── Helpers PDF ───────────────────────────────────────────────────────────────
 
-_LOGO_PATH  = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
-_PDF_WORKER = Path(__file__).parent / "report" / "pdf_worker_rl.py"
-_ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
+_LOGO_PATH     = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
+_PDF_WORKER    = Path(__file__).parent / "report" / "pdf_worker_rl.py"
+_COUNTER_FILE  = Path(__file__).parent / "report" / "cotizacion_counter.json"
+_ASEGURADORAS  = ['Sancor', 'Federación', 'Meridional']
 
 _EXCLUIR_SANCOR = {'Garage', 'Max 1', 'Max Incendio', 'Max 3', 'Max Totales', 'Max 6'}
 
-# Grupos de cobertura equivalentes entre aseguradoras.
-# Para cada aseguradora: función que recibe el nombre y devuelve True si coincide.
+# Grupos de cobertura equivalentes entre aseguradoras, en orden ascendente.
 _COVERAGE_GROUPS = [
     {
-        'nombre': 'Cobertura Total (Premium)',
+        'nombre': 'Terceros Completo FULL',
         'match': {
             'Sancor':     lambda n: 'premium' in n.lower(),
             'Federación': lambda n: n.strip() == 'CF - Full',
@@ -35,7 +35,25 @@ _COVERAGE_GROUPS = [
         },
     },
     {
-        'nombre': 'Terceros + Robo — Franquicia 2%',
+        'nombre': 'Terceros Completos',
+        'match': {
+            'Meridional': lambda n: (
+                'C TOTAL' in n.upper() and
+                'TERCEROS COMPLETOS' in n.upper() and
+                'PREMIUM' not in n.upper()
+            ),
+        },
+    },
+    {
+        'nombre': 'Todo Riesgo con Franquicia del 1%',
+        'match': {
+            'Sancor':     lambda n: '1%' in n,
+            'Federación': lambda n: '1%' in n,
+            'Meridional': lambda n: '1%' in n,
+        },
+    },
+    {
+        'nombre': 'Todo Riesgo con Franquicia del 2%',
         'match': {
             'Sancor':     lambda n: '2%' in n,
             'Federación': lambda n: '2%' in n,
@@ -43,7 +61,15 @@ _COVERAGE_GROUPS = [
         },
     },
     {
-        'nombre': 'Terceros + Robo — Franquicia 4%',
+        'nombre': 'Todo Riesgo con Franquicia del 3%',
+        'match': {
+            'Sancor':     lambda n: '3%' in n,
+            'Federación': lambda n: '3%' in n,
+            'Meridional': lambda n: '3%' in n,
+        },
+    },
+    {
+        'nombre': 'Todo Riesgo con Franquicia del 4%',
         'match': {
             'Sancor':     lambda n: '4%' in n,
             'Federación': lambda n: '4%' in n,
@@ -51,7 +77,15 @@ _COVERAGE_GROUPS = [
         },
     },
     {
-        'nombre': 'Terceros + Robo — Franquicia 6%',
+        'nombre': 'Todo Riesgo con Franquicia del 5%',
+        'match': {
+            'Sancor':     lambda n: '5%' in n,
+            'Federación': lambda n: '5%' in n,
+            'Meridional': lambda n: '5%' in n,
+        },
+    },
+    {
+        'nombre': 'Todo Riesgo con Franquicia del 6%',
         'match': {
             'Sancor':     lambda n: '6%' in n,
             'Federación': lambda n: '6%' in n,
@@ -59,6 +93,19 @@ _COVERAGE_GROUPS = [
         },
     },
 ]
+
+
+def _get_next_nro_cotizacion():
+    try:
+        if _COUNTER_FILE.exists():
+            d = json.loads(_COUNTER_FILE.read_text(encoding='utf-8'))
+            n = d.get('last', 499) + 1
+        else:
+            n = 500
+        _COUNTER_FILE.write_text(json.dumps({'last': n}), encoding='utf-8')
+        return n
+    except Exception:
+        return 500
 
 
 def parse_precio(texto):
@@ -137,12 +184,15 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
         if resultados_por_aseguradora[a].get('capital')
     }
 
+    nro = _get_next_nro_cotizacion()
+
     data = {
-        'aseguradoras': aseguradoras_activas,
-        'rows':         rows,
-        'info':         info,
-        'capitales':    capitales,
-        'logo_path':    str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
+        'aseguradoras':    aseguradoras_activas,
+        'rows':            rows,
+        'info':            info,
+        'capitales':       capitales,
+        'nro_cotizacion':  nro,
+        'logo_path':       str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
     }
 
     result = subprocess.run(
