@@ -47,7 +47,7 @@ def _select2_pick(page, search_text, option_text, timeout=15000):
     time.sleep(1)
 
 
-def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M'):
+def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M', email=''):
     s = sessions[session_id]
     q = s['queue']
 
@@ -182,12 +182,24 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         for m in modelos_raw:
             log(f'  [{m["index"]}] {m["texto"]}')
 
-        # Seleccionar el primero por defecto (luego se implementará selección por usuario)
-        if modelos_raw:
-            cotizador.click(
-                f'#select2-drop div.select2-result-label:has-text("{modelos_raw[0]["texto"][:30]}")'
-            )
-            log(f'Modelo seleccionado: {modelos_raw[0]["texto"]}')
+        if not modelos_raw:
+            raise Exception('No se encontraron modelos en Meridional.')
+
+        # Enviar lista al front-end para que el usuario seleccione
+        s['queue'].put({'type': 'modelos_meridional',
+                        'modelos': [m['texto'] for m in modelos_raw]})
+        s['status'] = 'esperando_modelo_meridional'
+        model_event_mer = s['model_event_meridional']
+        model_event_mer.clear()
+        log('Esperando selección de modelo Meridional (máx 3 min)...')
+        model_event_mer.wait(timeout=180)
+
+        modelo_index = s.get('modelo_index_meridional', 0)
+        modelo_elegido = modelos_raw[modelo_index]
+        cotizador.click(
+            f'#select2-drop div.select2-result-label:has-text("{modelo_elegido["texto"][:30]}")'
+        )
+        log(f'Modelo seleccionado: {modelo_elegido["texto"]}')
         time.sleep(1)
 
         # ── USO DEL VEHÍCULO ──────────────────────────────────────────────────
@@ -214,7 +226,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         time.sleep(2)
 
         log('Ingresando email...')
-        cotizador.fill('input#coEMail', 'info@siluseg.com.ar')
+        cotizador.fill('input#coEMail', email or 'info@siluseg.com.ar')
         time.sleep(0.5)
 
         log(f'Ingresando DNI: {dni}...')

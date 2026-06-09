@@ -23,6 +23,43 @@ _ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
 
 _EXCLUIR_SANCOR = {'Garage', 'Max 1', 'Max Incendio', 'Max 3', 'Max Totales', 'Max 6'}
 
+# Grupos de cobertura equivalentes entre aseguradoras.
+# Para cada aseguradora: función que recibe el nombre y devuelve True si coincide.
+_COVERAGE_GROUPS = [
+    {
+        'nombre': 'Cobertura Total (Premium)',
+        'match': {
+            'Sancor':     lambda n: 'premium' in n.lower(),
+            'Federación': lambda n: n.strip() == 'CF - Full',
+            'Meridional': lambda n: 'C TOTAL PREMIUM' in n.upper(),
+        },
+    },
+    {
+        'nombre': 'Terceros + Robo — Franquicia 2%',
+        'match': {
+            'Sancor':     lambda n: '2%' in n,
+            'Federación': lambda n: '2%' in n,
+            'Meridional': lambda n: '2%' in n,
+        },
+    },
+    {
+        'nombre': 'Terceros + Robo — Franquicia 4%',
+        'match': {
+            'Sancor':     lambda n: '4%' in n,
+            'Federación': lambda n: '4%' in n,
+            'Meridional': lambda n: '4%' in n,
+        },
+    },
+    {
+        'nombre': 'Terceros + Robo — Franquicia 6%',
+        'match': {
+            'Sancor':     lambda n: '6%' in n,
+            'Federación': lambda n: '6%' in n,
+            'Meridional': lambda n: '6%' in n,
+        },
+    },
+]
+
 
 def parse_precio(texto):
     """'$ 321.543,37 x mes' → 321543.37"""
@@ -49,32 +86,50 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
            resultados_por_aseguradora[a].get('coberturas')
     ]
 
-    coberturas_vistas = []
-    seen = set()
-    for a in aseguradoras_activas:
-        for c in resultados_por_aseguradora[a]['coberturas']:
-            if c['nombre'] not in seen:
-                coberturas_vistas.append(c['nombre'])
-                seen.add(c['nombre'])
-
-    rows = []
-    for nombre in coberturas_vistas:
-        precios_raw = {}
-        deducible = ''
-        for a in aseguradoras_activas:
-            for c in resultados_por_aseguradora[a]['coberturas']:
-                if c['nombre'] == nombre:
-                    precios_raw[a] = c['precio']
-                    if not deducible and c.get('deducible'):
-                        deducible = c['deducible']
+    def _build_row(nombre, precios_raw):
         precios_validos = {a: v for a, v in precios_raw.items() if v}
         mejor = min(precios_validos, key=precios_validos.get) if precios_validos else None
-        rows.append({
+        return {
             'cobertura': nombre,
-            'deducible': deducible,
             'precios':   {a: _fmt(precios_raw.get(a)) for a in aseguradoras_activas},
             'mejor':     mejor,
-        })
+        }
+
+    rows = []
+    used = {a: set() for a in aseguradoras_activas}
+
+    # 1. Coberturas agrupadas (equivalentes entre aseguradoras)
+    for group in _COVERAGE_GROUPS:
+        precios_raw = {}
+        for a in aseguradoras_activas:
+            matcher = group['match'].get(a)
+            if not matcher:
+                continue
+            for c in resultados_por_aseguradora[a]['coberturas']:
+                if c['nombre'] not in used[a] and matcher(c['nombre']):
+                    precios_raw[a] = c['precio']
+                    used[a].add(c['nombre'])
+                    break
+        if any(precios_raw.values()):
+            rows.append(_build_row(group['nombre'], precios_raw))
+
+    # 2. Coberturas individuales no agrupadas
+    seen_ungrouped = set()
+    for a in aseguradoras_activas:
+        for c in resultados_por_aseguradora[a]['coberturas']:
+            nombre = c['nombre']
+            if nombre in used[a] or nombre in seen_ungrouped:
+                continue
+            precios_raw = {}
+            for a2 in aseguradoras_activas:
+                for c2 in resultados_por_aseguradora[a2]['coberturas']:
+                    if c2['nombre'] == nombre and nombre not in used[a2]:
+                        precios_raw[a2] = c2['precio']
+                        used[a2].add(nombre)
+                        break
+            seen_ungrouped.add(nombre)
+            if any(precios_raw.values()):
+                rows.append(_build_row(nombre, precios_raw))
 
     capitales = {
         a: resultados_por_aseguradora[a].get('capital', '')
@@ -125,7 +180,7 @@ URL_LOGIN = (
 sessions = {}
 
 
-def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo):
+def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo, email=''):
     s = sessions[session_id]
     q = s["queue"]
     model_event = s["model_event"]
@@ -143,7 +198,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         # ── Arrancar scrapers paralelos ──────────────────────────────────────
         meridional_thread = threading.Thread(
             target=meridional.run,
-            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo),
+            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo, email),
             daemon=True,
         )
         meridional_thread.start()
@@ -519,6 +574,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
             "capital":  info_pagina.get("capital", ""),
             "cliente":  info_pagina.get("cliente", ""),
             "dni":      dni,
+            "email":    email,
         }
 
         for aseg, datos in s["resultados"].items():
@@ -582,32 +638,35 @@ def index():
 def iniciar_cotizacion():
     data = request.json or {}
     dni      = data.get("dni", "").strip()
-    anio     = data.get("anio", "").strip()
-    marca    = data.get("marca", "").strip().upper()
-    modelo   = data.get("modelo", "").strip().upper()
+    anio      = data.get("anio", "").strip()
+    marca     = data.get("marca", "").strip().upper()
+    modelo    = data.get("modelo", "").strip().upper()
     localidad = data.get("localidad", "").strip().upper()
     provincia = data.get("provincia", "BUENOS AIRES").strip().upper()
-    sexo     = data.get("sexo", "M").strip().upper()
+    sexo      = data.get("sexo", "M").strip().upper()
+    email     = data.get("email", "").strip()
 
     if not all([dni, anio, marca, modelo, localidad]):
         return jsonify({"error": "Todos los campos son requeridos"}), 400
 
     session_id = str(uuid.uuid4())
     sessions[session_id] = {
-        "status":               "iniciando",
-        "queue":                queue.Queue(),
-        "model_event":          threading.Event(),
-        "model_event_fedpat":   threading.Event(),
-        "modelo_index":         None,
-        "modelo_index_fedpat":  None,
-        "tipo_index_fedpat":    None,
-        "pdf_filename":         None,
-        "resultados":           {},
+        "status":                    "iniciando",
+        "queue":                     queue.Queue(),
+        "model_event":               threading.Event(),
+        "model_event_fedpat":        threading.Event(),
+        "model_event_meridional":    threading.Event(),
+        "modelo_index":              None,
+        "modelo_index_fedpat":       None,
+        "modelo_index_meridional":   None,
+        "tipo_index_fedpat":         None,
+        "pdf_filename":              None,
+        "resultados":                {},
     }
 
     threading.Thread(
         target=run_automation,
-        args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo),
+        args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo, email),
         daemon=True,
     ).start()
 
@@ -681,6 +740,21 @@ def seleccionar_tipo_fedpat():
     s = sessions[session_id]
     s["tipo_index_fedpat"] = int(tipo_index)
     s["model_event_fedpat"].set()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/seleccionar-modelo-meridional", methods=["POST"])
+def seleccionar_modelo_meridional():
+    data = request.json or {}
+    session_id   = data.get("session_id")
+    modelo_index = data.get("modelo_index")
+
+    if session_id not in sessions:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+
+    s = sessions[session_id]
+    s["modelo_index_meridional"] = int(modelo_index)
+    s["model_event_meridional"].set()
     return jsonify({"ok": True})
 
 

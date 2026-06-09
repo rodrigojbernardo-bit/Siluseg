@@ -83,8 +83,9 @@ def main():
 
     # Fecha
     fecha_para = Paragraph(
-        f'<font name="Helvetica" size="8" color="#555555">{fecha}</font>',
-        ps('fd', alignment=TA_RIGHT, leading=12)
+        f'<font name="Helvetica-Bold" size="7" color="#1a4b8c">Fecha de Cotización</font><br/>'
+        f'<font name="Helvetica" size="9" color="#1a1a2e">{fecha}</font>',
+        ps('fd', alignment=TA_RIGHT, leading=13)
     )
 
     # Fila principal: [logo] | [info vehículo/cliente] | [fecha]
@@ -143,17 +144,13 @@ def main():
 
     # ── Tabla comparativa ─────────────────────────────────────────────────────
     n     = len(aseguradoras)
-    cov_w = usable * 0.30
-    ded_w = usable * 0.10
-    pr_w  = (usable - cov_w - ded_w) / max(n, 1)
-    cols  = [cov_w, ded_w] + [pr_w] * n
+    cov_w = usable * 0.38
+    pr_w  = (usable - cov_w) / max(n, 1)
+    cols  = [cov_w] + [pr_w] * n
 
     th     = ps('th', fontName='Helvetica-Bold', fontSize=9,
                 textColor=colors.white, alignment=TA_CENTER)
-    th_sa  = ps('ts', fontName='Helvetica', fontSize=7,
-                textColor=colors.HexColor('#dddddd'), alignment=TA_CENTER, leading=9)
-    td_cov = ps('tc', fontSize=8, leading=10)
-    td_ded = ps('td', fontSize=8, alignment=TA_CENTER, leading=10)
+    td_cov = ps('tc', fontSize=8, leading=11)
     td_num = ps('tn', fontSize=9, alignment=TA_CENTER, leading=11)
     td_bst = ps('tb', fontSize=9, fontName='Helvetica-Bold',
                 textColor=colors.HexColor('#155724'),
@@ -171,7 +168,7 @@ def main():
         return Paragraph(f'<b>{aseg.upper()}</b>', th)
 
     header = (
-        [Paragraph('<b>COBERTURA</b>', th), Paragraph('<b>DEDUCIBLE</b>', th)]
+        [Paragraph('<b>COBERTURA</b>', th)]
         + [make_header_cell(a) for a in aseguradoras]
     )
     tdata = [header]
@@ -180,13 +177,12 @@ def main():
     for i, row in enumerate(rows):
         cells = [
             Paragraph(row['cobertura'], td_cov),
-            Paragraph(row['deducible'] or '—', td_ded),
         ]
         for j, a in enumerate(aseguradoras):
             price   = row['precios'].get(a)
             is_best = (row.get('mejor') == a) and bool(price)
             if is_best:
-                bests.append((i + 1, j + 2))
+                bests.append((i + 1, j + 1))
             txt = f'<b>{price}</b>' if is_best and price else (price or '—')
             cells.append(Paragraph(txt, td_bst if is_best else td_num))
         tdata.append(cells)
@@ -203,7 +199,7 @@ def main():
         ('RIGHTPADDING',   (0, 0), (-1, -1), 6),
     ]
     for j, a in enumerate(aseguradoras):
-        ts.append(('BACKGROUND', (j + 2, 0), (j + 2, 0), BRAND.get(a, DARK)))
+        ts.append(('BACKGROUND', (j + 1, 0), (j + 1, 0), BRAND.get(a, DARK)))
     for (ri, ci) in bests:
         ts.append(('BACKGROUND', (ci, ri), (ci, ri), BEST_BG))
         ts.append(('FONTNAME',   (ci, ri), (ci, ri), 'Helvetica-Bold'))

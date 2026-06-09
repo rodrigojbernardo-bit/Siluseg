@@ -127,7 +127,8 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #section-modelos, #section-modelos-fedpat, #section-tipos-fedpat { display: none; }
+    #section-modelos, #section-modelos-fedpat, #section-tipos-fedpat,
+    #section-modelos-meridional { display: none; }
 
     .model-list {
       display: flex;
@@ -280,6 +281,10 @@
             <option value="F">Femenino</option>
           </select>
         </div>
+        <div class="form-group full">
+          <label>Email del cliente</label>
+          <input type="email" id="email" placeholder="Ej: cliente@email.com" />
+        </div>
       </div>
       <button type="submit" class="btn btn-primary btn-full" id="btn-cotizar">
         Iniciar cotización
@@ -350,6 +355,23 @@
     </button>
   </div>
 
+  <!-- Selección modelo Meridional -->
+  <div class="card" id="section-modelos-meridional">
+    <h2>
+      Meridional — Seleccioná el modelo
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Elegí el modelo correcto para Meridional.
+    </p>
+    <div class="model-list" id="model-list-meridional"></div>
+    <button class="btn btn-primary" id="btn-confirmar-modelo-meridional" disabled>
+      Confirmar modelo
+    </button>
+  </div>
+
   <!-- Done -->
   <div class="card" id="section-done">
     <div class="done-banner">
@@ -375,9 +397,11 @@
   let currentModelos = [];
   let currentModelosFedpat = [];
   let currentTiposFedpat = [];
+  let currentModelosMeridional = [];
   let selectedModelIndex = null;
   let selectedModelFedpatIndex = null;
   let selectedTipoFedpatIndex = null;
+  let selectedModelMeridionalIndex = null;
   let evtSource = null;
 
   const form = document.getElementById('form-cotizar');
@@ -405,6 +429,7 @@
     const localidad = document.getElementById('localidad').value.trim().toUpperCase();
     const provincia = document.getElementById('provincia').value;
     const sexo     = document.getElementById('sexo').value;
+    const email    = document.getElementById('email').value.trim();
 
     btnCotizar.disabled = true;
     btnCotizar.innerHTML = '<span class="spinner"></span> Iniciando...';
@@ -416,7 +441,7 @@
       const res = await fetch('/api/cotizar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo }),
+        body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo, email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al iniciar cotización');
@@ -458,6 +483,15 @@
             selectedModelFedpatIndex = i;
             document.getElementById('btn-confirmar-modelo-fedpat').disabled = false;
           });
+      }
+
+      // Meridional: selección de modelo
+      if (msg.type === 'modelos_meridional') {
+        currentModelosMeridional = msg.modelos;
+        showSeleccion('section-modelos-meridional', 'model-list-meridional', msg.modelos, (i) => {
+          selectedModelMeridionalIndex = i;
+          document.getElementById('btn-confirmar-modelo-meridional').disabled = false;
+        });
       }
 
       // FedPat: selección de tipo de vehículo
@@ -544,6 +578,21 @@
     appendLog(`Tipo FedPat confirmado: ${currentTiposFedpat[selectedTipoFedpatIndex].texto}`);
   });
 
+  // Confirmar modelo Meridional
+  document.getElementById('btn-confirmar-modelo-meridional').addEventListener('click', async () => {
+    if (selectedModelMeridionalIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-modelo-meridional');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-modelos-meridional');
+    document.getElementById('badge').innerHTML = '<span class="pulse pulse-blue"></span> Procesando';
+    await confirmarSeleccion('/api/seleccionar-modelo-meridional', {
+      session_id: currentSessionId,
+      modelo_index: selectedModelMeridionalIndex
+    });
+    appendLog(`Modelo Meridional confirmado: ${currentModelosMeridional[selectedModelMeridionalIndex]}`);
+  });
+
   async function confirmarSeleccion(url, body) {
     try {
       const res = await fetch(url, {
@@ -576,15 +625,18 @@
     currentModelos = [];
     currentModelosFedpat = [];
     currentTiposFedpat = [];
+    currentModelosMeridional = [];
     selectedModelIndex = null;
     selectedModelFedpatIndex = null;
     selectedTipoFedpatIndex = null;
+    selectedModelMeridionalIndex = null;
     logBox.innerHTML = '';
     errorBox.style.display = 'none';
     hide('section-progress');
     hide('section-modelos');
     hide('section-modelos-fedpat');
     hide('section-tipos-fedpat');
+    hide('section-modelos-meridional');
     hide('section-done');
     btnCotizar.disabled = false;
     btnCotizar.textContent = 'Iniciar cotización';
