@@ -59,64 +59,87 @@ def main():
     story = []
 
     # ── Encabezado ────────────────────────────────────────────────────────────
-    fecha = datetime.now().strftime('%d/%m/%Y')
+    fecha    = datetime.now().strftime('%d/%m/%Y')
+    HDR_BG   = colors.HexColor('#f0f4f8')
+    ACCENT   = colors.HexColor('#1a4b8c')
 
-    # Columna izquierda: logo + datos de contacto
-    contacto = (
-        '<font size="8"><b>www.siluseg.com.ar</b><br/>'
-        'WhatsApp: +54 9 11 3450-1751</font>'
+    def lbl(t):
+        return f'<font name="Helvetica-Bold" size="7" color="#1a4b8c">{t}  </font>'
+    def val(t):
+        return f'<font name="Helvetica" size="8.5" color="#1a1a2e">{t}</font>'
+
+    # Bloque de info: vehículo, cliente, DNI
+    veh_str = f'{info.get("vehiculo","")} {info.get("anio","")}'.strip()
+    info_lines = []
+    if veh_str:
+        info_lines.append(Paragraph(lbl('VEHÍCULO') + val(veh_str),
+                                    ps('iv', leading=13)))
+    if info.get('cliente'):
+        info_lines.append(Paragraph(lbl('CLIENTE') + val(info['cliente']),
+                                    ps('ic', leading=13)))
+    if info.get('dni'):
+        info_lines.append(Paragraph(lbl('DNI') + val(info['dni']),
+                                    ps('id', leading=13)))
+
+    # Fecha
+    fecha_para = Paragraph(
+        f'<font name="Helvetica" size="8" color="#555555">{fecha}</font>',
+        ps('fd', alignment=TA_RIGHT, leading=12)
     )
-    left_col = [Paragraph(contacto, ps('c', fontSize=8, textColor=GRAY))]
 
-    # Columna central: datos del vehículo y cliente
-    vehiculo_txt = (
-        f'<font size="8">'
-        f'<b>Vehículo:</b> {info.get("vehiculo","")} {info.get("anio","")}<br/>'
-        f'<b>Cliente:</b> {info.get("cliente","")}&nbsp;&nbsp;'
-        f'<b>DNI:</b> {info.get("dni","")}'
-        f'</font>'
-    )
-    center_col = Paragraph(vehiculo_txt, ps('i', fontSize=8, textColor=GRAY))
-
-    # Columna derecha: fecha
-    right_col = Paragraph(
-        f'<font size="8">{fecha}</font>',
-        ps('d', fontSize=8, alignment=TA_RIGHT, textColor=GRAY)
-    )
-
-    logo_w = 3.5 * cm
+    # Fila principal: [logo] | [info vehículo/cliente] | [fecha]
+    logo_w    = 4.0 * cm
+    logo_h    = 2.2 * cm
     logo_shown = False
 
     if logo_path and Path(logo_path).exists():
         try:
             from reportlab.platypus import Image as RLImage
-            logo = RLImage(logo_path, width=logo_w, height=2.0*cm, kind='proportional')
-            hdr_row = [[logo, left_col], [center_col], [right_col]]
-            hdr_cols = [logo_w + 0.2*cm, usable * 0.42, usable * 0.55 - logo_w - 0.2*cm, usable * 0.13]
-            # Usar tabla 4 columnas: logo | contacto | vehiculo | fecha
-            hdr_row = [[logo, left_col, center_col, right_col]]
-            hdr_cols = [logo_w, usable*0.22, usable*0.50, usable*0.13]
+            logo_img   = RLImage(logo_path, width=logo_w, height=logo_h, kind='proportional')
+            main_row   = [[logo_img, info_lines, fecha_para]]
+            main_cols  = [logo_w + 0.4*cm, usable * 0.60, usable - logo_w - 0.4*cm - usable * 0.60]
             logo_shown = True
         except Exception:
             pass
 
     if not logo_shown:
-        hdr_row = [[left_col, center_col, right_col]]
-        hdr_cols = [usable*0.25, usable*0.62, usable*0.13]
+        main_row  = [[info_lines, fecha_para]]
+        main_cols = [usable * 0.80, usable * 0.20]
 
-    ht = Table(hdr_row, colWidths=hdr_cols)
-    ht.setStyle(TableStyle([
+    mt = Table(main_row, colWidths=main_cols)
+    mt.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), HDR_BG),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 4),
-        ('TOPPADDING',    (0, 0), (-1, -1), 2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
+        ('TOPPADDING',    (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LINEBELOW',     (0, 0), (-1, 0),  0, HDR_BG),
     ]))
-    story.append(ht)
-    story.append(Spacer(1, 0.2*cm))
-    story.append(HRFlowable(width='100%', thickness=1.5,
-                             color=colors.HexColor('#cccccc')))
-    story.append(Spacer(1, 0.25*cm))
+    story.append(mt)
+
+    # Barra de contacto oscura
+    contact_para = Paragraph(
+        '<font name="Helvetica-Bold" size="8" color="#ffffff">www.siluseg.com.ar'
+        '</font>'
+        '<font name="Helvetica" size="8" color="#aaccee">'
+        '&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;'
+        '</font>'
+        '<font name="Helvetica" size="8" color="#ffffff">'
+        'WhatsApp: +54 9 11 3450-1751'
+        '</font>',
+        ps('ct', alignment=TA_CENTER, leading=12)
+    )
+    cb = Table([[contact_para]], colWidths=[usable])
+    cb.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), DARK),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
+    ]))
+    story.append(cb)
+    story.append(Spacer(1, 0.3*cm))
 
     # ── Tabla comparativa ─────────────────────────────────────────────────────
     n     = len(aseguradoras)

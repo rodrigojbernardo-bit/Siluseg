@@ -21,6 +21,8 @@ _LOGO_PATH  = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
 _PDF_WORKER = Path(__file__).parent / "report" / "pdf_worker_rl.py"
 _ASEGURADORAS = ['Sancor', 'Federación', 'Meridional']
 
+_EXCLUIR_SANCOR = {'Garage', 'Max 1', 'Max Incendio', 'Max 3', 'Max Totales', 'Max 6'}
+
 
 def parse_precio(texto):
     """'$ 321.543,37 x mes' → 321543.37"""
@@ -475,6 +477,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
                 "deducible": c["deducible_texto"],
             }
             for c in coberturas_raw
+            if c["nombre"] not in _EXCLUIR_SANCOR
         ]
 
         s["resultados"]["Sancor"] = {

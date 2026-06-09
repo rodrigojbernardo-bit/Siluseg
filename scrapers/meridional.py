@@ -8,6 +8,13 @@ USUARIO   = "RJBERNARDO"
 PASSWORD  = "AIU2024a"
 
 
+EXCLUIR = {
+    'C1 - INCENDIO, ROBO TOTAL Y PARCIAL',
+    'C1 TOTAL - INCENDIO, ROBO TOTAL Y PARCIAL',
+    'C - TERCEROS COMPLETOS',
+}
+
+
 def _parse_precio(texto):
     """'501.359,29' → 501359.29"""
     if not texto:
@@ -328,6 +335,9 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
 
         coberturas = []
         for c in coberturas_raw:
+            if c['nombre'].strip() in EXCLUIR:
+                log(f'  [omitida] {c["nombre"]}')
+                continue
             precio = _parse_precio(c['importe'])
             if precio:
                 coberturas.append({
