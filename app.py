@@ -17,7 +17,8 @@ from scrapers import meridional, fedpat
 
 # ── Helpers PDF ───────────────────────────────────────────────────────────────
 
-_LOGO_PATH     = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
+_LOGO_PATH     = Path(__file__).parent / "Siluseg_Logo.png"
+_LOGO_PATH_JPG = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
 _PDF_WORKER    = Path(__file__).parent / "report" / "pdf_worker_rl.py"
 _COUNTER_FILE  = Path(__file__).parent / "report" / "cotizacion_counter.json"
 _ASEGURADORAS  = ['Sancor', 'Federación', 'Meridional']
@@ -192,7 +193,8 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
         'info':            info,
         'capitales':       capitales,
         'nro_cotizacion':  nro,
-        'logo_path':       str(_LOGO_PATH) if _LOGO_PATH.exists() else None,
+        'logo_path':       str(_LOGO_PATH) if _LOGO_PATH.exists() else (
+                           str(_LOGO_PATH_JPG) if _LOGO_PATH_JPG.exists() else None),
     }
 
     result = subprocess.run(

@@ -35,7 +35,7 @@ def main():
     )
 
     # ── Paleta ───────────────────────────────────────────────────────────────
-    BLUE    = colors.HexColor('#1a4b8c')   # azul principal (logo)
+    BLUE    = colors.HexColor('#222f5b')   # azul principal (logo)
     LIGHT   = colors.HexColor('#f5f5f5')
     BEST_BG = colors.HexColor('#c8f7c5')
     HDR_BG  = colors.HexColor('#f0f4f8')
@@ -43,7 +43,7 @@ def main():
     BRAND = {
         'Sancor':     colors.HexColor('#c0392b'),
         'Federación': colors.HexColor('#1a7a3c'),
-        'Meridional': colors.HexColor('#1a4b8c'),
+        'Meridional': colors.HexColor('#222f5b'),
     }
 
     page   = landscape(A4)
@@ -72,13 +72,13 @@ def main():
     # ── Encabezado ────────────────────────────────────────────────────────────
     # Columna izquierda: título + N° de cotización + datos del vehículo/cliente
     def lbl(t):
-        return f'<font name="Helvetica-Bold" size="7" color="#1a4b8c">{t}  </font>'
+        return f'<font name="Helvetica-Bold" size="7" color="#222f5b">{t}  </font>'
     def val(t):
         return f'<font name="Helvetica" size="8.5" color="#1a1a2e">{t}</font>'
 
     left_lines = [
         Paragraph(
-            '<font name="Helvetica-Bold" size="15" color="#1a4b8c">COTIZACIÓN AUTOMOTORES</font>',
+            '<font name="Helvetica-Bold" size="15" color="#222f5b">COTIZACIÓN AUTOMOTORES</font>',
             ps('ht', leading=20)
         ),
         Spacer(1, 0.12 * cm),
@@ -168,7 +168,7 @@ def main():
     # ── Saludo ────────────────────────────────────────────────────────────────
     cliente = info.get('cliente', '').strip()
     saludo = (
-        f'<font name="Helvetica-Bold" size="10" color="#1a4b8c">GRACIAS, {cliente}</font><br/>'
+        f'<font name="Helvetica-Bold" size="10" color="#222f5b">GRACIAS, {cliente}</font><br/>'
         '<font name="Helvetica" size="9" color="#444444">'
         'Abajo te detallamos las opciones de coberturas y precios que te podemos ofrecer '
         'para que puedas elegir la que más te convenga.'
