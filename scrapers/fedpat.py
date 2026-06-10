@@ -226,6 +226,37 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         """)
         log(f'CF: ${cuota_cf}')
 
+        # Extraer suma asegurada en la página de resultados CF (antes de cambiar plan)
+        capital_text = page.evaluate(r"""
+            () => {
+                const txt = document.body.innerText;
+                // Patrones con saltos de línea permitidos entre label y valor
+                const pats = [
+                    /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
+                    /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
+                    /valor\s+a\s+nuevo[\s\S]{0,80}\$([\d.,]+)/i,
+                ];
+                for (const p of pats) {
+                    const m = txt.match(p);
+                    if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
+                        return '$' + m[1].trim();
+                }
+                // Buscar celdas/spans etiquetados "Suma asegurada" y tomar el siguiente valor
+                for (const el of document.querySelectorAll('td,th,div,span,label,p')) {
+                    const t = (el.innerText || '').trim().toLowerCase();
+                    if (t === 'suma asegurada' || t === 'valor asegurado' || t === 'capital asegurado') {
+                        const sib = el.nextElementSibling;
+                        if (sib) {
+                            const m = (sib.innerText || '').match(/([\d.,]+)/);
+                            if (m) return '$' + m[1];
+                        }
+                    }
+                }
+                return '';
+            }
+        """)
+        log(f'Capital FedPat: {capital_text or "(no encontrado)"}')
+
         # TD3 6%
         log('Cotizando TD3 6%...')
         page.evaluate("window.scrollTo(0, 0)")
@@ -333,16 +364,6 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             }
         """)
         log(f'TD3 2%: ${cuota_td3_2}')
-
-        capital_text = page.evaluate("""
-            () => {
-                const body = document.body.innerText;
-                const m = body.match(
-                    /(?:suma|capital|valor)\\s+asegur(?:ada|able|ado)[^\\$\\d\\n]{0,30}\\$?\\s*([\\d.,]+)/i
-                );
-                return m ? '$' + m[1].trim() : '';
-            }
-        """)
 
         log('Guardando cotizacion...')
         page.evaluate("window.scrollTo(0, 0)")
