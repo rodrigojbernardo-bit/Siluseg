@@ -14,31 +14,32 @@ MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
 
 
 def main():
-    data           = json.loads(sys.stdin.read())
-    output_path    = sys.argv[1]
+    data              = json.loads(sys.stdin.read())
+    output_path       = sys.argv[1]
 
-    aseguradoras   = data['aseguradoras']
-    rows           = data['rows']
-    info           = data['info']
-    capitales      = data.get('capitales', {})
-    logo_path      = data.get('logo_path')
-    nro_cotizacion = data.get('nro_cotizacion', '')
+    aseguradoras      = data['aseguradoras']
+    rows              = data['rows']
+    info              = data['info']
+    capitales         = data.get('capitales', {})
+    logo_path         = data.get('logo_path')
+    nro_cotizacion    = data.get('nro_cotizacion', '')
+    logos_aseguradoras = data.get('logos_aseguradoras', {})
 
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import cm
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import (
         SimpleDocTemplate, Table, TableStyle,
-        Paragraph, Spacer,
+        Paragraph, Spacer, Image as RLImage,
     )
 
     # ── Paleta ───────────────────────────────────────────────────────────────
-    BLUE    = colors.HexColor('#222f5b')   # azul principal (logo)
+    BLUE    = colors.HexColor('#222f5b')
     LIGHT   = colors.HexColor('#f5f5f5')
     BEST_BG = colors.HexColor('#c8f7c5')
-    HDR_BG  = colors.HexColor('#f0f4f8')
+    GRAY    = colors.HexColor('#555555')
 
     BRAND = {
         'Sancor':     colors.HexColor('#c0392b'),
@@ -46,15 +47,16 @@ def main():
         'Meridional': colors.HexColor('#222f5b'),
     }
 
-    page   = landscape(A4)
+    # ── Página vertical (A4 portrait) ────────────────────────────────────────
+    page   = A4
     margin = 1.2 * cm
-    usable = page[0] - 2 * margin
+    usable = page[0] - 2 * margin   # ≈ 18.6 cm
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=page,
         leftMargin=margin, rightMargin=margin,
-        topMargin=margin, bottomMargin=margin,
+        topMargin=margin,  bottomMargin=margin,
     )
 
     def ps(name, **kw):
@@ -63,119 +65,106 @@ def main():
         kw.setdefault('leading', 12)
         return ParagraphStyle(name, **kw)
 
+    def _barra_azul(html_txt):
+        t = Table(
+            [[Paragraph(html_txt, ps('br', alignment=TA_CENTER, leading=13))]],
+            colWidths=[usable]
+        )
+        t.setStyle(TableStyle([
+            ('BACKGROUND',    (0, 0), (-1, -1), BLUE),
+            ('TOPPADDING',    (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING',   (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
+        ]))
+        return t
+
     story = []
 
     # ── Fecha larga ───────────────────────────────────────────────────────────
     now = datetime.now()
     fecha_larga = f"Buenos Aires, {now.day:02d} de {MESES[now.month - 1]} de {now.year}"
 
-    # ── Encabezado ────────────────────────────────────────────────────────────
-    # Columna izquierda: título + N° de cotización + datos del vehículo/cliente
-    def lbl(t):
-        return f'<font name="Helvetica-Bold" size="7" color="#222f5b">{t}  </font>'
-    def val(t):
-        return f'<font name="Helvetica" size="8.5" color="#1a1a2e">{t}</font>'
-
-    left_lines = [
-        Paragraph(
-            '<font name="Helvetica-Bold" size="15" color="#222f5b">COTIZACIÓN AUTOMOTORES</font>',
-            ps('ht', leading=20)
-        ),
-        Spacer(1, 0.12 * cm),
-        Paragraph(
-            f'<font name="Helvetica" size="10" color="#555555">N° {nro_cotizacion}</font>',
-            ps('hn', leading=14)
-        ),
-        Spacer(1, 0.18 * cm),
-    ]
-    veh_str = f'{info.get("vehiculo", "")} {info.get("anio", "")}'.strip()
-    if veh_str:
-        left_lines.append(Paragraph(lbl('VEHÍCULO') + val(veh_str), ps('iv', leading=13)))
-    if info.get('cliente'):
-        left_lines.append(Paragraph(lbl('CLIENTE') + val(info['cliente']), ps('ic', leading=13)))
-    if info.get('dni'):
-        left_lines.append(Paragraph(lbl('DNI') + val(info['dni']), ps('id', leading=13)))
-
-    # Columna derecha: logo arriba + fecha abajo
-    logo_w = 4.2 * cm
-    logo_h = 2.0 * cm
-    hdr_right_w = usable * 0.30
+    # ── Encabezado: COTIZACIÓN centrada | logo + fecha a la derecha ──────────
+    hdr_right_w = usable * 0.35
     hdr_left_w  = usable - hdr_right_w
+
+    titulo_para = Paragraph(
+        '<font name="Helvetica-Bold" size="17" color="#222f5b">COTIZACIÓN AUTOMOTORES</font>',
+        ps('ht', alignment=TA_CENTER, leading=22)
+    )
 
     fecha_para = Paragraph(
         f'<font name="Helvetica" size="8" color="#555555">{fecha_larga}</font>',
         ps('fd', alignment=TA_RIGHT, leading=12)
     )
 
-    logo_shown = False
+    right_cell = fecha_para
     if logo_path and Path(logo_path).exists():
         try:
-            from reportlab.platypus import Image as RLImage
-            logo_img = RLImage(logo_path, width=logo_w, height=logo_h, kind='proportional')
-            right_inner = Table([[logo_img], [fecha_para]],
-                                colWidths=[hdr_right_w - 0.6 * cm])
-            right_inner.setStyle(TableStyle([
+            logo_img = RLImage(logo_path, width=4.5*cm, height=2.0*cm, kind='proportional')
+            right_tbl = Table([[logo_img], [fecha_para]],
+                              colWidths=[hdr_right_w - 0.4*cm])
+            right_tbl.setStyle(TableStyle([
                 ('ALIGN',         (0, 0), (-1, -1), 'RIGHT'),
                 ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
                 ('LEFTPADDING',   (0, 0), (-1, -1), 0),
                 ('RIGHTPADDING',  (0, 0), (-1, -1), 0),
                 ('TOPPADDING',    (0, 0), (-1, -1), 0),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ]))
-            right_cell = right_inner
-            logo_shown = True
+            right_cell = right_tbl
         except Exception:
             pass
 
-    if not logo_shown:
-        right_cell = fecha_para
-
-    ht = Table([[left_lines, right_cell]], colWidths=[hdr_left_w, hdr_right_w])
+    ht = Table([[titulo_para, right_cell]], colWidths=[hdr_left_w, hdr_right_w])
     ht.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, -1), HDR_BG),
-        ('VALIGN',        (0, 0), (0, 0),   'MIDDLE'),
-        ('VALIGN',        (1, 0), (1, 0),   'MIDDLE'),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN',         (0, 0), (0, 0),   'CENTER'),
         ('ALIGN',         (1, 0), (1, 0),   'RIGHT'),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 12),
-        ('TOPPADDING',    (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        # Sin fondo — blanco puro
     ]))
     story.append(ht)
 
-    # ── Barra azul superior (contacto) ────────────────────────────────────────
-    def _barra_azul(texto):
-        t = Table(
-            [[Paragraph(texto, ps('br', alignment=TA_CENTER, leading=12))]],
-            colWidths=[usable]
-        )
-        t.setStyle(TableStyle([
-            ('BACKGROUND',    (0, 0), (-1, -1), BLUE),
-            ('TOPPADDING',    (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('LEFTPADDING',   (0, 0), (-1, -1), 8),
-            ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
-        ]))
-        return t
-
+    # ── Barra azul: N° cotización + contacto ──────────────────────────────────
     story.append(_barra_azul(
-        '<font name="Helvetica-Bold" size="8" color="#ffffff">www.siluseg.com.ar</font>'
-        '<font name="Helvetica" size="8" color="#aaccee">&nbsp;&nbsp;|&nbsp;&nbsp;</font>'
+        f'<font name="Helvetica-Bold" size="9" color="#ffffff">COTIZACIÓN N° {nro_cotizacion}</font>'
+        '<font name="Helvetica" size="8" color="#7fa8d8">&nbsp;&nbsp;|&nbsp;&nbsp;</font>'
+        '<font name="Helvetica" size="8" color="#ffffff">www.siluseg.com.ar</font>'
+        '<font name="Helvetica" size="8" color="#7fa8d8">&nbsp;&nbsp;|&nbsp;&nbsp;</font>'
         '<font name="Helvetica" size="8" color="#ffffff">WhatsApp: +54 9 11 3450-1751</font>'
     ))
-    story.append(Spacer(1, 0.35 * cm))
+    story.append(Spacer(1, 0.3 * cm))
 
-    # ── Saludo ────────────────────────────────────────────────────────────────
+    # ── Saludo + datos del vehículo ───────────────────────────────────────────
     cliente = info.get('cliente', '').strip()
-    saludo = (
-        f'<font name="Helvetica-Bold" size="10" color="#222f5b">GRACIAS, {cliente}</font><br/>'
-        '<font name="Helvetica" size="9" color="#444444">'
-        'Abajo te detallamos las opciones de coberturas y precios que te podemos ofrecer '
-        'para que puedas elegir la que más te convenga.'
-        '</font>'
-    )
-    story.append(Paragraph(saludo, ps('sal', leading=15)))
-    story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph(
+        f'<font name="Helvetica-Bold" size="11" color="#222f5b">GRACIAS, {cliente}</font>',
+        ps('sal1', leading=16)
+    ))
+    story.append(Spacer(1, 0.1 * cm))
+    story.append(Paragraph(
+        'Abajo te detallamos las opciones de coberturas y precios que te podemos '
+        'ofrecer para que puedas elegir la que más te convenga.',
+        ps('sal2', fontSize=9, leading=13)
+    ))
+    story.append(Spacer(1, 0.15 * cm))
+
+    veh_str = f'{info.get("vehiculo", "")} {info.get("anio", "")}'.strip()
+    partes_info = []
+    if veh_str:              partes_info.append(f'<b>Vehículo:</b> {veh_str}')
+    if info.get('cliente'):  partes_info.append(f'<b>Cliente:</b> {info["cliente"]}')
+    if info.get('dni'):      partes_info.append(f'<b>DNI:</b> {info["dni"]}')
+    if partes_info:
+        story.append(Paragraph(
+            '&nbsp;&nbsp;&nbsp;'.join(partes_info),
+            ps('veh', fontSize=8, leading=12, textColor=GRAY)
+        ))
+    story.append(Spacer(1, 0.3 * cm))
 
     # ── Tabla comparativa ─────────────────────────────────────────────────────
     n     = len(aseguradoras)
@@ -183,8 +172,10 @@ def main():
     pr_w  = (usable - cov_w) / max(n, 1)
     cols  = [cov_w] + [pr_w] * n
 
-    th    = ps('th', fontName='Helvetica-Bold', fontSize=9,
+    th    = ps('th', fontName='Helvetica-Bold', fontSize=8,
                textColor=colors.white, alignment=TA_CENTER)
+    th_sm = ps('thsm', fontName='Helvetica', fontSize=6.5,
+               textColor=colors.HexColor('#dddddd'), alignment=TA_CENTER, leading=9)
     td_cov = ps('tc', fontSize=8, leading=11)
     td_num = ps('tn', fontSize=9, alignment=TA_CENTER, leading=11)
     td_bst = ps('tb', fontSize=9, fontName='Helvetica-Bold',
@@ -192,12 +183,26 @@ def main():
                 alignment=TA_CENTER, leading=11)
 
     def make_header_cell(aseg):
-        cap = capitales.get(aseg, '')
+        cap          = capitales.get(aseg, '')
+        logo_aseg_path = logos_aseguradoras.get(aseg, '')
+        items = []
+
+        # Logo de la aseguradora (si existe)
+        if logo_aseg_path and Path(logo_aseg_path).exists():
+            try:
+                aseg_logo = RLImage(logo_aseg_path,
+                                    width=pr_w * 0.75, height=0.85*cm,
+                                    kind='proportional')
+                items.append(aseg_logo)
+            except Exception:
+                pass
+
+        # Nombre
+        txt = f'<b>{aseg.upper()}</b>'
         if cap:
-            return Paragraph(
-                f'<b>{aseg.upper()}</b><br/><font size="7">SA: {cap}</font>', th
-            )
-        return Paragraph(f'<b>{aseg.upper()}</b>', th)
+            txt += f'<br/><font size="6.5">SA: {cap}</font>'
+        items.append(Paragraph(txt, th))
+        return items
 
     header = [Paragraph('<b>COBERTURA</b>', th)] + [make_header_cell(a) for a in aseguradoras]
     tdata  = [header]
@@ -222,8 +227,8 @@ def main():
         ('VALIGN',         (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING',     (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING',  (0, 0), (-1, -1), 5),
-        ('LEFTPADDING',    (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',   (0, 0), (-1, -1), 6),
+        ('LEFTPADDING',    (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING',   (0, 0), (-1, -1), 5),
     ]
     for j, a in enumerate(aseguradoras):
         ts.append(('BACKGROUND', (j + 1, 0), (j + 1, 0), BRAND.get(a, BLUE)))
@@ -233,7 +238,7 @@ def main():
     ct.setStyle(TableStyle(ts))
     story.append(ct)
 
-    # ── Barra azul inferior (pie) ─────────────────────────────────────────────
+    # ── Barra azul inferior ───────────────────────────────────────────────────
     story.append(Spacer(1, 0.3 * cm))
     story.append(_barra_azul(
         '<font name="Helvetica" size="7.5" color="#ffffff">'

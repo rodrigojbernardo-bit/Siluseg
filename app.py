@@ -19,6 +19,9 @@ from scrapers import meridional, fedpat
 
 _LOGO_PATH     = Path(__file__).parent / "Siluseg_Logo.png"
 _LOGO_PATH_JPG = Path(__file__).parent / "Siluseg - Logo TARJETA OK.jpg"
+_LOGO_MERIDIONAL = Path(__file__).parent / "Meridional_Logo.png"
+_LOGO_SANCOR     = Path(__file__).parent / "Sancor_Logo.png"
+_LOGO_FEDPAT     = Path(__file__).parent / "FedPat_Logo.png"
 _PDF_WORKER    = Path(__file__).parent / "report" / "pdf_worker_rl.py"
 _COUNTER_FILE  = Path(__file__).parent / "report" / "cotizacion_counter.json"
 _ASEGURADORAS  = ['Sancor', 'Federación', 'Meridional']
@@ -187,14 +190,22 @@ def _generar_pdf(resultados_por_aseguradora, info, output_path):
 
     nro = _get_next_nro_cotizacion()
 
+    logos_aseg = {}
+    for aseg, path in [('Meridional', _LOGO_MERIDIONAL),
+                       ('Sancor',     _LOGO_SANCOR),
+                       ('Federación', _LOGO_FEDPAT)]:
+        if path.exists():
+            logos_aseg[aseg] = str(path)
+
     data = {
-        'aseguradoras':    aseguradoras_activas,
-        'rows':            rows,
-        'info':            info,
-        'capitales':       capitales,
-        'nro_cotizacion':  nro,
-        'logo_path':       str(_LOGO_PATH) if _LOGO_PATH.exists() else (
-                           str(_LOGO_PATH_JPG) if _LOGO_PATH_JPG.exists() else None),
+        'aseguradoras':      aseguradoras_activas,
+        'rows':              rows,
+        'info':              info,
+        'capitales':         capitales,
+        'nro_cotizacion':    nro,
+        'logos_aseguradoras': logos_aseg,
+        'logo_path':         str(_LOGO_PATH) if _LOGO_PATH.exists() else (
+                             str(_LOGO_PATH_JPG) if _LOGO_PATH_JPG.exists() else None),
     }
 
     result = subprocess.run(
