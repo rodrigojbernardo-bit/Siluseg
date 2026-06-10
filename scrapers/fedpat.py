@@ -5,6 +5,7 @@ from playwright.sync_api import sync_playwright
 from pathlib import Path
 import time
 import re
+import json
 
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
@@ -208,29 +209,45 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         log('Cotizando CF...')
         page.click('input#cotizar_')
         page.wait_for_load_state("networkidle", timeout=30000)
-        time.sleep(3)
+        time.sleep(5)
 
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(2)
-        cuota_cf = page.evaluate("""
+
+        cuota_cf_raw = page.evaluate("""
             () => {
+                // Recolectar TODOS los pares label→valor de 'Cuota'
                 const titulos = document.querySelectorAll('div.title__filter.marginpixeles-top-10px');
-                for (let titulo of titulos) {
-                    if (titulo.innerText.trim() === 'Cuota') {
-                        const valor = titulo.nextElementSibling;
-                        return valor ? valor.innerText.trim() : 'NO ENCONTRADO';
-                    }
+                const pares = [];
+                for (const t of titulos) {
+                    const sib = t.nextElementSibling;
+                    pares.push({ label: t.innerText.trim(), valor: sib ? sib.innerText.trim() : '' });
                 }
-                return 'NO ENCONTRADO';
+                // Separar las cuotas numéricas
+                const cuotas = pares
+                    .filter(p => p.label === 'Cuota' && /[\\d.,]/.test(p.valor))
+                    .map(p => {
+                        const clean = p.valor.replace(/[^\\d,]/g, '').replace(',', '.');
+                        return { texto: p.valor, num: parseFloat(clean) || 0 };
+                    });
+                if (cuotas.length === 0) return JSON.stringify({ cuotas: pares, resultado: 'NO ENCONTRADO' });
+                // Si hay una sola, devolverla directo
+                if (cuotas.length === 1) return JSON.stringify({ cuotas: pares, resultado: cuotas[0].texto });
+                // Si hay varias, sumar (CF base + addons)
+                const total = cuotas.reduce((s, c) => s + c.num, 0);
+                const formatted = total.toFixed(2).replace('.', ',');
+                return JSON.stringify({ cuotas: pares, resultado: formatted });
             }
         """)
-        log(f'CF: ${cuota_cf}')
+        cf_data = json.loads(cuota_cf_raw)
+        log(f'[FedPat CF] Elementos en página: {cf_data["cuotas"]}')
+        cuota_cf = cf_data['resultado']
+        log(f'CF resultado: {cuota_cf}')
 
-        # Extraer suma asegurada en la página de resultados CF (antes de cambiar plan)
+        # Extraer suma asegurada en la página de resultados CF
         capital_text = page.evaluate(r"""
             () => {
                 const txt = document.body.innerText;
-                // Patrones con saltos de línea permitidos entre label y valor
                 const pats = [
                     /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
                     /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
@@ -241,7 +258,6 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                     if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
                         return '$' + m[1].trim();
                 }
-                // Buscar celdas/spans etiquetados "Suma asegurada" y tomar el siguiente valor
                 for (const el of document.querySelectorAll('td,th,div,span,label,p')) {
                     const t = (el.innerText || '').trim().toLowerCase();
                     if (t === 'suma asegurada' || t === 'valor asegurado' || t === 'capital asegurado') {
@@ -364,6 +380,27 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             }
         """)
         log(f'TD3 2%: ${cuota_td3_2}')
+
+        # Fallback capital desde la última página si no se encontró en CF
+        if not capital_text:
+            capital_text = page.evaluate(r"""
+                () => {
+                    const txt = document.body.innerText;
+                    const pats = [
+                        /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
+                        /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
+                        /valor\s+a\s+nuevo[\s\S]{0,80}\$([\d.,]+)/i,
+                    ];
+                    for (const p of pats) {
+                        const m = txt.match(p);
+                        if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
+                            return '$' + m[1].trim();
+                    }
+                    return '';
+                }
+            """)
+            if capital_text:
+                log(f'Capital FedPat (fallback TD3 2%): {capital_text}')
 
         log('Guardando cotizacion...')
         page.evaluate("window.scrollTo(0, 0)")
