@@ -51,7 +51,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 1%',
         'match': {
-            'Sancor':     lambda n: '1%' in n or bool(re.search(r'\bmax\s*1\b', n, re.I)),
+            'Sancor':     lambda n: '1%' in n,
             'Federación': lambda n: '1%' in n,
             'Meridional': lambda n: '1%' in n,
         },
@@ -59,7 +59,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 2%',
         'match': {
-            'Sancor':     lambda n: '2%' in n or bool(re.search(r'\bmax\s*2\b', n, re.I)),
+            'Sancor':     lambda n: '2%' in n,
             'Federación': lambda n: '2%' in n,
             'Meridional': lambda n: '2%' in n,
         },
@@ -67,7 +67,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 3%',
         'match': {
-            'Sancor':     lambda n: '3%' in n or bool(re.search(r'\bmax\s*3\b', n, re.I)),
+            'Sancor':     lambda n: '3%' in n,
             'Federación': lambda n: '3%' in n,
             'Meridional': lambda n: '3%' in n,
         },
@@ -75,7 +75,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 4%',
         'match': {
-            'Sancor':     lambda n: '4%' in n or bool(re.search(r'\bmax\s*4\b', n, re.I)),
+            'Sancor':     lambda n: '4%' in n,
             'Federación': lambda n: '4%' in n,
             'Meridional': lambda n: '4%' in n,
         },
@@ -83,7 +83,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 5%',
         'match': {
-            'Sancor':     lambda n: '5%' in n or bool(re.search(r'\bmax\s*5\b', n, re.I)),
+            'Sancor':     lambda n: '5%' in n,
             'Federación': lambda n: '5%' in n,
             'Meridional': lambda n: '5%' in n,
         },
@@ -91,7 +91,7 @@ _COVERAGE_GROUPS = [
     {
         'nombre': 'Todo Riesgo con Franquicia del 6%',
         'match': {
-            'Sancor':     lambda n: '6%' in n or bool(re.search(r'\bmax\s*6\b', n, re.I)),
+            'Sancor':     lambda n: '6%' in n,
             'Federación': lambda n: '6%' in n,
             'Meridional': lambda n: '6%' in n,
         },
@@ -588,15 +588,24 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         """)
         info_pagina = json.loads(info_json)
 
-        coberturas = [
-            {
-                "nombre":    c["nombre"],
+        def _nombre_sancor(nombre, deducible_texto):
+            # "Todo Riesgo" aparece N veces con el mismo título; el % está en el deducible
+            if re.search(r'\btodo\s+riesgo\b', nombre, re.I) and deducible_texto:
+                pct = re.search(r'\b(\d+)\s*%', deducible_texto)
+                if pct:
+                    return f"Todo Riesgo {pct.group(1)}%"
+            return nombre
+
+        coberturas = []
+        for c in coberturas_raw:
+            nombre_enriquecido = _nombre_sancor(c["nombre"], c["deducible_texto"])
+            if c["nombre"] in _EXCLUIR_SANCOR:
+                continue
+            coberturas.append({
+                "nombre":    nombre_enriquecido,
                 "precio":    parse_precio(c["precio_texto"]),
                 "deducible": c["deducible_texto"],
-            }
-            for c in coberturas_raw
-            if c["nombre"] not in _EXCLUIR_SANCOR
-        ]
+            })
 
         log(f"Coberturas Sancor: {[c['nombre'] for c in coberturas]}")
         s["resultados"]["Sancor"] = {
