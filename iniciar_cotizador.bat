@@ -2,6 +2,16 @@
 title Cotizador Siluseg
 cd /d "%~dp0"
 
+:: ── Configuración (sacar los "::" para activar) ─────────────────
+:: Clave para entrar a la web del cotizador (default: siluseg2026)
+:: set COTI_CLAVE=TuClaveSecreta123
+
+:: Email que envía las cotizaciones (contraseña de aplicación de Gmail,
+:: ver DESPLIEGUE.md punto 3)
+:: set SMTP_USER=rodrigojbernardo@gmail.com
+:: set SMTP_PASS=xxxxxxxxxxxxxxxx
+:: ────────────────────────────────────────────────────────────────
+
 echo.
 echo  =========================================
 echo   Cotizador Siluseg - Iniciando...

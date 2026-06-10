@@ -1,8 +1,13 @@
 
-from flask import Flask, request, jsonify, send_file, render_template, Response
+from flask import (
+    Flask, request, jsonify, send_file, render_template, Response,
+    session, redirect, url_for,
+)
 from playwright.sync_api import sync_playwright
+from datetime import timedelta
 import threading
 import multiprocessing
+import secrets
 import uuid
 import time
 import queue
@@ -13,6 +18,7 @@ import sys
 import subprocess
 from pathlib import Path
 from scrapers import meridional, fedpat
+import notifier
 
 
 # ── Helpers PDF ───────────────────────────────────────────────────────────────
@@ -228,6 +234,60 @@ app = Flask(__name__)
 
 DOWNLOADS_DIR = Path(__file__).parent / "downloads"
 DOWNLOADS_DIR.mkdir(exist_ok=True)
+
+# ── Acceso con clave ──────────────────────────────────────────────────────────
+# La clave se puede cambiar con la variable de entorno COTI_CLAVE.
+COTI_CLAVE = os.environ.get("COTI_CLAVE", "siluseg2026")
+
+# secret_key persistente para que la sesión sobreviva reinicios de la app
+_SECRET_FILE = Path(__file__).parent / "report" / ".secret_key"
+try:
+    if _SECRET_FILE.exists():
+        app.secret_key = _SECRET_FILE.read_text(encoding="utf-8").strip()
+    else:
+        app.secret_key = secrets.token_hex(32)
+        _SECRET_FILE.write_text(app.secret_key, encoding="utf-8")
+except Exception:
+    app.secret_key = secrets.token_hex(32)
+app.permanent_session_lifetime = timedelta(days=30)
+
+# Tokens públicos por PDF: permiten compartir un link de descarga
+# imposible de adivinar sin exponer el resto de la app.
+_PDF_TOKENS_FILE = Path(__file__).parent / "report" / "pdf_tokens.json"
+_pdf_tokens_lock = threading.Lock()
+
+
+def _registrar_pdf_publico(filename):
+    token = secrets.token_urlsafe(16)
+    with _pdf_tokens_lock:
+        try:
+            tokens = json.loads(_PDF_TOKENS_FILE.read_text(encoding="utf-8")) \
+                if _PDF_TOKENS_FILE.exists() else {}
+        except Exception:
+            tokens = {}
+        tokens[token] = filename
+        _PDF_TOKENS_FILE.write_text(json.dumps(tokens, indent=1), encoding="utf-8")
+    return token
+
+
+def _buscar_pdf_por_token(token):
+    try:
+        tokens = json.loads(_PDF_TOKENS_FILE.read_text(encoding="utf-8"))
+        return tokens.get(token)
+    except Exception:
+        return None
+
+
+@app.before_request
+def _requiere_clave():
+    # Rutas públicas: login, archivos estáticos y descarga por token
+    if request.endpoint in ("login", "static") or request.path.startswith("/pdf-publico/"):
+        return
+    if session.get("autenticado"):
+        return
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "No autorizado"}), 401
+    return redirect(url_for("login"))
 
 USUARIO = "pbernardo30334"
 PASSWORD = "Termo2025"
@@ -669,8 +729,9 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
 
         s["pdf_filename"] = filename
         s["status"] = "completado"
+        pdf_token = _registrar_pdf_publico(filename)
         log("¡Listo! PDF comparativo generado.")
-        q.put({"type": "done", "pdf_filename": filename})
+        q.put({"type": "done", "pdf_filename": filename, "pdf_token": pdf_token})
 
     except Exception as e:
         import traceback
@@ -701,6 +762,26 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
 
 
 # ── Rutas Flask ───────────────────────────────────────────────────────────────
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        clave = (request.form.get("clave") or "").strip()
+        if secrets.compare_digest(clave, COTI_CLAVE):
+            session.permanent = True
+            session["autenticado"] = True
+            return redirect(url_for("index"))
+        error = "Clave incorrecta"
+        time.sleep(1)  # frena intentos por fuerza bruta
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
 
 @app.route("/")
 def index():
@@ -837,6 +918,53 @@ def descargar_pdf(filename):
     if not pdf_path.exists():
         return jsonify({"error": "PDF no encontrado"}), 404
     return send_file(str(pdf_path), as_attachment=True, download_name=filename)
+
+
+@app.route("/pdf-publico/<token>")
+def pdf_publico(token):
+    """Descarga de PDF mediante link compartible (sin login)."""
+    filename = _buscar_pdf_por_token(token)
+    if not filename:
+        return "Link no válido o vencido", 404
+    pdf_path = DOWNLOADS_DIR / filename
+    if not pdf_path.exists():
+        return "PDF no encontrado", 404
+    return send_file(str(pdf_path), as_attachment=True, download_name=filename)
+
+
+@app.route("/api/enviar-email", methods=["POST"])
+def enviar_email():
+    data = request.json or {}
+    filename     = (data.get("filename") or "").strip()
+    destinatario = (data.get("destinatario") or "").strip()
+
+    if not filename or not destinatario:
+        return jsonify({"error": "Faltan datos (PDF o destinatario)"}), 400
+    if "@" not in destinatario:
+        return jsonify({"error": "Email de destino no válido"}), 400
+
+    pdf_path = DOWNLOADS_DIR / filename
+    if not pdf_path.exists():
+        return jsonify({"error": "PDF no encontrado"}), 404
+
+    try:
+        notifier.enviar_email(
+            destinatario=destinatario,
+            asunto="Cotización de seguro - Siluseg",
+            cuerpo=(
+                "Hola,\n\n"
+                "Te enviamos la cotización solicitada. "
+                "Encontrarás el detalle comparativo en el PDF adjunto.\n\n"
+                "Saludos,\nSiluseg Seguros"
+            ),
+            adjunto_path=pdf_path,
+        )
+    except notifier.ConfigError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": f"No se pudo enviar el email: {e}"}), 500
+
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

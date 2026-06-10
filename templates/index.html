@@ -384,7 +384,33 @@
     <a id="btn-descargar" href="#" class="btn btn-success btn-full">
       Descargar PDF
     </a>
-    <button class="btn btn-primary btn-full" style="margin-top:10px;background:#4a5568"
+
+    <!-- Compartir cotización -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <p style="font-size:14px;font-weight:600;color:#4a5568;margin-bottom:10px">
+        Enviar cotización
+      </p>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input type="tel" id="whatsapp-numero" placeholder="WhatsApp (ej: 1155667788, opcional)"
+               style="flex:1;padding:10px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:14px" />
+        <button class="btn" id="btn-whatsapp"
+                style="background:#25d366;color:white;white-space:nowrap">
+          WhatsApp
+        </button>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <input type="email" id="email-destino" placeholder="Email del cliente"
+               style="flex:1;padding:10px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:14px" />
+        <button class="btn btn-primary" id="btn-email" style="white-space:nowrap">
+          Enviar email
+        </button>
+      </div>
+      <p id="envio-status" style="font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+
+    <button class="btn btn-primary btn-full" style="margin-top:16px;background:#4a5568"
             onclick="resetApp()">
       Nueva cotización
     </button>
@@ -506,7 +532,7 @@
 
       if (msg.type === 'done') {
         evtSource.close();
-        showDone(msg.pdf_filename);
+        showDone(msg.pdf_filename, msg.pdf_token);
       }
 
       if (msg.type === 'error') {
@@ -607,7 +633,12 @@
     }
   }
 
-  function showDone(filename) {
+  let currentPdfFilename = null;
+  let currentPdfToken = null;
+
+  function showDone(filename, pdfToken) {
+    currentPdfFilename = filename;
+    currentPdfToken = pdfToken || null;
     document.getElementById('badge').innerHTML = '✓ Completado';
     document.getElementById('badge').className = 'status-badge';
     document.getElementById('badge').style.cssText = 'background:#f0fff4;color:#276749;margin-left:12px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;';
@@ -618,6 +649,57 @@
     btnCotizar.disabled = false;
     btnCotizar.textContent = 'Iniciar cotización';
   }
+
+  function setEnvioStatus(texto, esError) {
+    const el = document.getElementById('envio-status');
+    el.textContent = texto;
+    el.style.color = esError ? '#c53030' : '#276749';
+    el.style.display = 'block';
+  }
+
+  // Enviar por WhatsApp: abre WhatsApp con el mensaje y el link de descarga
+  document.getElementById('btn-whatsapp').addEventListener('click', () => {
+    if (!currentPdfToken) {
+      setEnvioStatus('No hay link de descarga disponible para esta cotización.', true);
+      return;
+    }
+    const link = `${location.origin}/pdf-publico/${currentPdfToken}`;
+    const mensaje = `Hola! Te envío la cotización de seguro de Siluseg. ` +
+                    `Podés descargar el PDF comparativo acá: ${link}`;
+    let numero = document.getElementById('whatsapp-numero').value.replace(/\D/g, '');
+    if (numero && !numero.startsWith('54')) numero = '549' + numero;
+    const url = numero
+      ? `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`
+      : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  });
+
+  // Enviar por email (con el PDF adjunto)
+  document.getElementById('btn-email').addEventListener('click', async () => {
+    const destinatario = document.getElementById('email-destino').value.trim();
+    if (!destinatario) {
+      setEnvioStatus('Ingresá el email de destino.', true);
+      return;
+    }
+    const btn = document.getElementById('btn-email');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Enviando...';
+    try {
+      const res = await fetch('/api/enviar-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: currentPdfFilename, destinatario }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al enviar');
+      setEnvioStatus(`✓ Email enviado a ${destinatario}`, false);
+    } catch (err) {
+      setEnvioStatus(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar email';
+    }
+  });
 
   function resetApp() {
     if (evtSource) evtSource.close();
@@ -630,6 +712,11 @@
     selectedModelFedpatIndex = null;
     selectedTipoFedpatIndex = null;
     selectedModelMeridionalIndex = null;
+    currentPdfFilename = null;
+    currentPdfToken = null;
+    document.getElementById('envio-status').style.display = 'none';
+    document.getElementById('whatsapp-numero').value = '';
+    document.getElementById('email-destino').value = '';
     logBox.innerHTML = '';
     errorBox.style.display = 'none';
     hide('section-progress');

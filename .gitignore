@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+downloads/
+report/.secret_key
+report/pdf_tokens.json
+report/cotizacion_counter.json
+error_log.txt
