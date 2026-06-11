@@ -84,10 +84,13 @@ def main():
         try:
             page = browser.new_page()
             login(page, config.FP_USUARIO, config.FP_PASSWORD)
-            print("Login completado. Sesión lista para operar.")
+            print("Login completado. Sesión lista para que el cotizador opere.")
 
-            # A partir de acá iría la automatización propia (carga de SVO, etc.).
-            # Por ahora dejamos la ventana abierta para verificar el acceso.
+            # Este archivo resuelve SOLO el acceso a Federación (sortear el
+            # Cloudflare y loguear). La automatización del cotizador importa
+            # `abrir_navegador` y `login` desde acá y sigue con su propia lógica
+            # sobre la misma `page`. Por ahora dejamos la ventana abierta para
+            # verificar que el acceso funciona.
             input("Presioná ENTER para cerrar el navegador...")
         finally:
             browser.close()
