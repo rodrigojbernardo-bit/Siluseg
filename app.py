@@ -631,6 +631,20 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         """)
         coberturas_raw = json.loads(coberturas_json)
         log(f"Se extrajeron {len(coberturas_raw)} coberturas Sancor.")
+        if not coberturas_raw:
+            # No se leyó ninguna cobertura: guardar diagnóstico al Escritorio.
+            try:
+                from pathlib import Path as _P
+                _d = _P.home() / 'Desktop'
+                if not _d.exists():
+                    _d = _P.home()
+                cotizador.screenshot(path=str(_d / 'sancor_sincoberturas.png'),
+                                     full_page=True)
+                (_d / 'sancor_sincoberturas.html').write_text(
+                    cotizador.content(), encoding='utf-8')
+                log(f"Guardé diagnóstico de Sancor en: {_d}")
+            except Exception:
+                pass
 
         info_json = cotizador.evaluate("""
             () => {

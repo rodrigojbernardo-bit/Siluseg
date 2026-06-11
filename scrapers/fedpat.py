@@ -54,36 +54,38 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         # El portal tiene una "verificación de seguridad" (Cloudflare) que
         # puede aparecer en cualquier momento. Si sale, esperamos a que la
         # resuelvas a mano en la ventana de Chrome y recién ahí seguimos.
-        for intento in (1, 2, 3):
-            try:
-                page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
-                esperar_verificacion(page, log)
-                page.wait_for_selector('input#usuario', timeout=30000)
-                break
-            except Exception:
-                if intento == 3:
-                    raise
-                log(f'Verificación de seguridad / portal lento, reintentando ({intento}/3)...')
-                esperar_verificacion(page, log)
-                time.sleep(5)
+        page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
+        esperar_verificacion(page, log)
         time.sleep(2)
 
-        log('Ingresando credenciales...')
-        page.fill('input#usuario', USUARIO)
-        time.sleep(1)
-        page.fill('input#password', PASSWORD)
-        time.sleep(1)
-        page.click('input[name="Aceptar"]')
+        # Puede que ya estés logueado (tu Chrome mantiene la sesión). Solo
+        # iniciamos sesión si aparece el formulario de login.
+        ya_logueado = True
         try:
-            page.wait_for_load_state("networkidle", timeout=15000)
+            page.wait_for_selector('input#usuario', timeout=8000)
+            ya_logueado = False
         except Exception:
-            pass
-        time.sleep(3)
-        esperar_verificacion(page, log)
-        log(f'URL tras login: {page.url}')
+            ya_logueado = True
 
-        # Si quedó alguna sesión anterior abierta, el portal puede mostrar un
-        # aviso para continuar igualmente. Lo cerramos si aparece.
+        if not ya_logueado:
+            log('Ingresando credenciales...')
+            page.fill('input#usuario', USUARIO)
+            time.sleep(1)
+            page.fill('input#password', PASSWORD)
+            time.sleep(1)
+            page.click('input[name="Aceptar"]')
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            time.sleep(3)
+            esperar_verificacion(page, log)
+        else:
+            log('Ya había una sesión abierta, no hace falta loguear.')
+
+        log(f'URL actual: {page.url}')
+
+        # Cerrar un posible aviso de sesión previa.
         for sel in ('input[value="Continuar"]', 'a:has-text("Continuar")',
                     'input[value="Aceptar"]', 'button:has-text("Aceptar")'):
             try:
@@ -96,36 +98,36 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             except Exception:
                 pass
 
-        # El portal es viejo (homeWin32.do) y puede abrir la aplicación en
-        # OTRA ventana tras el login. Buscamos en qué ventana está el menú
-        # y nos pasamos a ella; si no, seguimos en la actual.
-        log('Buscando la ventana de la aplicación...')
-        app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle', log, timeout=25)
-        if app_page is not None and app_page != page:
-            log('La aplicación se abrió en otra ventana; me cambio a ella.')
-            page = app_page
-            try:
-                page.bring_to_front()
-            except Exception:
-                pass
-        elif app_page is None:
-            log('No encontré el menú principal. Guardando diagnóstico...')
-            guardar_diagnostico(page, 'fedpat_postlogin', log)
+        # Ir DIRECTO a Nueva Cotización por la dirección (más robusto que el
+        # menú Favoritos, que cambia o se abre en otra ventana).
+        log('Abriendo Nueva Cotización Automotor...')
+        try:
+            page.goto('https://online.fedpat.com.ar/self/newCotizacion.do',
+                      wait_until="domcontentloaded", timeout=30000)
+            esperar_verificacion(page, log)
+        except Exception:
+            # Plan B: por el menú Favoritos, eventualmente en otra ventana.
+            log('No pude ir directo; intento por el menú Favoritos...')
+            app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle', log, timeout=25)
+            if app_page is not None and app_page != page:
+                page = app_page
+                try: page.bring_to_front()
+                except Exception: pass
+            page.click('a.MsM_dropdownToggle')
+            time.sleep(1)
+            page.click('a[href="/self/newCotizacion.do"]')
 
-        log('Abriendo Favoritos...')
-        page.wait_for_selector('a.MsM_dropdownToggle', timeout=20000)
-        page.click('a.MsM_dropdownToggle')
-        time.sleep(1)
-
-        log('Clickeando Nueva Cotizacion Automotor...')
-        page.wait_for_selector('a[href="/self/newCotizacion.do"]', timeout=20000)
-        page.click('a[href="/self/newCotizacion.do"]')
         try:
             page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
             pass
         esperar_verificacion(page, log)
-        page.wait_for_selector('input#documentoAsegurado', timeout=20000)
+        # Si el formulario no aparece, guardamos diagnóstico para ver qué pasó.
+        try:
+            page.wait_for_selector('input#documentoAsegurado', timeout=25000)
+        except Exception:
+            guardar_diagnostico(page, 'fedpat_nuevacotizacion', log)
+            raise
         time.sleep(2)
 
         log(f'Ingresando DNI {dni}...')
