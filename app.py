@@ -18,6 +18,7 @@ import sys
 import subprocess
 from pathlib import Path
 from scrapers import meridional, fedpat
+from scrapers.common import HEADLESS, mensaje_error
 import notifier
 
 
@@ -336,7 +337,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         # ── Sancor ───────────────────────────────────────────────────────────
         log("Iniciando navegador Sancor...")
         pw = sync_playwright().start()
-        browser = pw.chromium.launch(headless=False)
+        browser = pw.chromium.launch(headless=HEADLESS)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -746,7 +747,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
                 f.write(f"\n{'='*50}\n{error_directo}\n")
         except Exception:
             pass
-        q.put({"type": "error", "msg": str(e)})
+        q.put({"type": "error", "msg": mensaje_error(e)})
         s["status"] = "error"
     finally:
         try:

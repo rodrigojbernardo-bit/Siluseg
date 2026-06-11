@@ -7,6 +7,8 @@ import time
 import re
 import json
 
+from scrapers.common import HEADLESS, mensaje_error
+
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
 URL_LOGIN = "https://online.fedpat.com.ar/self/homeWin32.do"
@@ -38,7 +40,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
     try:
         log('Iniciando navegador...')
         pw = sync_playwright().start()
-        browser = pw.chromium.launch(headless=False)
+        browser = pw.chromium.launch(headless=HEADLESS)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -429,7 +431,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         sessions[session_id]['resultados']['Federación'] = {
             'aseguradora': 'Federacion Patronal',
             'ok': False,
-            'error': str(e),
+            'error': mensaje_error(e),
             'coberturas': [],
         }
     finally:

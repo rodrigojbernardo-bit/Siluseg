@@ -3,6 +3,8 @@ import time
 import json
 import re
 
+from scrapers.common import HEADLESS, mensaje_error
+
 URL_LOGIN = "https://ws8.meridionalnet.com.ar/Account/Login?ReturnUrl=%2F"
 USUARIO   = "RJBERNARDO"
 PASSWORD  = "AIU2024a"
@@ -60,7 +62,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
     try:
         log('Iniciando navegador...')
         pw      = sync_playwright().start()
-        browser = pw.chromium.launch(headless=False)
+        browser = pw.chromium.launch(headless=HEADLESS)
         context = browser.new_context()
         page    = context.new_page()
 
@@ -385,7 +387,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         sessions[session_id]['resultados']['Meridional'] = {
             'aseguradora': 'Meridional',
             'ok':          False,
-            'error':       str(e),
+            'error':       mensaje_error(e),
             'coberturas':  [],
         }
     finally:

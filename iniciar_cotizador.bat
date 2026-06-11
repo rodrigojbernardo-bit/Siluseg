@@ -10,6 +10,10 @@ cd /d "%~dp0"
 :: ver DESPLIEGUE.md punto 3)
 :: set SMTP_USER=rodrigojbernardo@gmail.com
 :: set SMTP_PASS=xxxxxxxxxxxxxxxx
+
+:: Navegadores ocultos (sin ventanas). Recomendado al usarlo a distancia,
+:: para que nadie cierre las ventanas por accidente mientras cotiza.
+:: set COTI_HEADLESS=1
 :: ────────────────────────────────────────────────────────────────
 
 echo.
