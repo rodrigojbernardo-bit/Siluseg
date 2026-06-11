@@ -76,16 +76,33 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(2)
         log(f'URL tras login: {page.url}')
 
+        # Si quedó alguna sesión anterior abierta, el portal puede mostrar un
+        # aviso para continuar igualmente. Lo cerramos si aparece.
+        for sel in ('input[value="Continuar"]', 'a:has-text("Continuar")',
+                    'input[value="Aceptar"]', 'button:has-text("Aceptar")'):
+            try:
+                el = page.query_selector(sel)
+                if el and el.is_visible():
+                    log('Cerrando aviso de sesión previa...')
+                    el.click()
+                    time.sleep(2)
+                    break
+            except Exception:
+                pass
+
         log('Abriendo Favoritos...')
+        page.wait_for_selector('a.MsM_dropdownToggle', timeout=20000)
         page.click('a.MsM_dropdownToggle')
         time.sleep(1)
 
         log('Clickeando Nueva Cotizacion Automotor...')
+        page.wait_for_selector('a[href="/self/newCotizacion.do"]', timeout=20000)
         page.click('a[href="/self/newCotizacion.do"]')
         try:
             page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
             pass
+        page.wait_for_selector('input#documentoAsegurado', timeout=20000)
         time.sleep(2)
 
         log(f'Ingresando DNI {dni}...')
@@ -449,6 +466,14 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
     except Exception as e:
         import traceback
         log(f'Error: {traceback.format_exc()}')
+        # Captura de pantalla al Escritorio para ver dónde se trabó.
+        try:
+            from pathlib import Path
+            destino = Path.home() / 'Desktop' / 'fedpat_error.png'
+            page.screenshot(path=str(destino), full_page=True)
+            log(f'Guardé una captura del error en: {destino}')
+        except Exception:
+            pass
         sessions[session_id]['resultados']['Federación'] = {
             'aseguradora': 'Federacion Patronal',
             'ok': False,
