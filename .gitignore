@@ -1,0 +1,11 @@
+# Credenciales y configuración local
+.env
+
+# Perfil de Chrome del bot (nunca versionar: pesa mucho y tiene cookies/sesión)
+chrome_perfil_bot/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
