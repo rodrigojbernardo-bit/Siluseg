@@ -7,7 +7,7 @@ import time
 import re
 import json
 
-from scrapers.common import HEADLESS, mensaje_error
+from scrapers.common import HEADLESS, mensaje_error, lanzar_navegador
 
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
@@ -36,28 +36,27 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
 
     pw = None
     browser = None
+    context = None
 
     try:
         log('Iniciando navegador...')
         pw = sync_playwright().start()
-        browser = pw.chromium.launch(headless=HEADLESS)
-        context = browser.new_context(accept_downloads=True)
-        page = context.new_page()
+        context, page = lanzar_navegador(pw, perfil='fedpat')
 
         log('Abriendo portal...')
-        # "networkidle" es frágil: si el portal tarda o deja conexiones
-        # abiertas, nunca se cumple. Esperamos el formulario de login
-        # directamente, con reintentos.
+        # El portal tiene una "verificación de seguridad" (antibot) que puede
+        # demorar unos segundos. Esperamos a que aparezca el formulario de
+        # login (o sea, que el filtro nos haya dejado pasar), con reintentos.
         for intento in (1, 2, 3):
             try:
                 page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
-                page.wait_for_selector('input#usuario', timeout=20000)
+                page.wait_for_selector('input#usuario', timeout=30000)
                 break
             except Exception:
                 if intento == 3:
                     raise
-                log(f'El portal tarda en responder, reintentando ({intento}/3)...')
-                time.sleep(3)
+                log(f'Verificación de seguridad / portal lento, reintentando ({intento}/3)...')
+                time.sleep(5)
         time.sleep(2)
 
         log('Ingresando credenciales...')
@@ -454,7 +453,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         }
     finally:
         try:
-            if browser: browser.close()
+            if context: context.close()
         except Exception:
             pass
         try:
