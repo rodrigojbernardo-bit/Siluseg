@@ -8,3 +8,4 @@ error_log.txt
 
 .browser_profiles/
 .chrome_fedpat/
+*.zip
