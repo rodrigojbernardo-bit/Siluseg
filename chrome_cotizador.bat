@@ -1,10 +1,15 @@
 @echo off
-title Chrome para el Cotizador (Federacion)
+title Chrome Siluseg (cotizador + uso diario)
 cd /d "%~dp0"
 
-:: Abre un Chrome especial que el cotizador puede usar para entrar a
-:: Federacion Patronal sin que lo frene la "verificacion de seguridad".
-:: Usa un perfil propio (no toca tu Chrome de todos los dias).
+:: Abre un Chrome REAL que el cotizador puede usar para Federacion.
+:: Este Chrome es para USO DIARIO: dejalo abierto y trabaja en el
+:: normalmente (carga de datos, portales, lo que necesites).
+:: Inicia sesion con tu cuenta de Google una sola vez y vas a tener
+:: tus contrasenias y favoritos de siempre.
+::
+:: El cotizador le abre una PESTANIA nueva cuando cotiza Federacion
+:: y la cierra al terminar: no toca tus pestanias.
 
 set "PERFIL=%~dp0.chrome_fedpat"
 set "PUERTO=9222"
@@ -19,13 +24,5 @@ if not exist "%CHROME%" (
   pause
   exit /b 1
 )
-
-echo.
-echo  Abriendo Chrome para el cotizador...
-echo.
-echo  1) Cuando abra, entra a Federacion y pasa la verificacion de seguridad.
-echo  2) Deja esta ventana de Chrome ABIERTA.
-echo  3) Recien ahi corre el cotizador (iniciar_cotizador.bat).
-echo.
 
 start "" "%CHROME%" --remote-debugging-port=%PUERTO% --user-data-dir="%PERFIL%" "https://online.fedpat.com.ar/self/homeWin32.do"

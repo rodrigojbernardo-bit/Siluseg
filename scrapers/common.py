@@ -63,27 +63,32 @@ def lanzar_navegador(pw, perfil, headless=None):
 
 
 def abrir_fedpat(pw):
-    """Abre Federación reutilizando un Chrome real ya abierto por el usuario.
+    """Abre Federación reutilizando TU Chrome (el que ya pasa Cloudflare).
 
     Si hay un Chrome escuchando en el puerto de depuración (lo abre el
-    archivo chrome_cotizador.bat), se conecta a ÉL: es un navegador de
-    verdad, con la confianza de Cloudflare, así pasa la verificación de
-    seguridad igual que cuando navegás a mano.
+    archivo chrome_cotizador.bat), se conecta a ÉL y le abre una PESTAÑA
+    NUEVA solo para Federación, sin tocar las pestañas en las que estás
+    trabajando. Al terminar, cierra únicamente esa pestaña; tu Chrome
+    sigue abierto.
 
     Si no hay ninguno, cae al navegador propio con perfil persistente.
-    Devuelve (page, cerrar) — llamar cerrar() al terminar.
+    Devuelve (page, cerrar, chrome_real).
     """
     port = os.environ.get("COTI_CHROME_PORT", "9222")
     try:
         browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
         ctx = browser.contexts[0] if browser.contexts else browser.new_context()
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        # Pestaña nueva, dedicada a Federación (no robamos la pestaña activa).
+        page = ctx.new_page()
 
         def cerrar():
-            # No cerramos el Chrome del usuario: solo soltamos la conexión.
-            pass
+            # Cerramos SOLO la pestaña de Federación; tu Chrome sigue intacto.
+            try:
+                page.close()
+            except Exception:
+                pass
 
-        return page, cerrar, True  # conectado a Chrome real
+        return page, cerrar, True  # conectado a tu Chrome real
     except Exception:
         pass
 
