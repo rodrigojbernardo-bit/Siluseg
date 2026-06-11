@@ -150,6 +150,75 @@ def esperar_verificacion(page, log=None, timeout=180):
     return False
 
 
+def encontrar_pagina_con(context, selector, log=None, timeout=30):
+    """Busca, entre todas las ventanas abiertas, la que tenga `selector`.
+
+    Portales viejos (como el de Federación) abren la aplicación en una
+    ventana nueva tras el login; el programa se quedaría mirando la
+    ventana vieja. Esto recorre todas las ventanas (y sus marcos internos)
+    y devuelve la que realmente tiene el menú/elemento buscado.
+    """
+    import time as _t
+    inicio = _t.time()
+    while _t.time() - inicio < timeout:
+        for p in list(context.pages):
+            try:
+                if p.query_selector(selector):
+                    return p
+            except Exception:
+                pass
+            # buscar también dentro de marcos (frames) de la página
+            try:
+                for fr in p.frames:
+                    if fr.query_selector(selector):
+                        if log:
+                            log('El menú está dentro de un marco de la página.')
+                        return p
+            except Exception:
+                pass
+        _t.sleep(1)
+    return None
+
+
+def guardar_diagnostico(page, nombre='diagnostico', log=None):
+    """Guarda en el Escritorio una foto + el HTML + las URLs de las ventanas.
+
+    Sirve para ver exactamente en qué pantalla se trabó la automatización
+    sin tener que estar mirando en vivo.
+    """
+    try:
+        from pathlib import Path
+        escritorio = Path.home() / 'Desktop'
+        if not escritorio.exists():
+            escritorio = Path.home()
+        base = escritorio / nombre
+        try:
+            page.screenshot(path=str(base.with_suffix('.png')), full_page=True)
+        except Exception:
+            pass
+        try:
+            html = page.content()
+            base.with_suffix('.html').write_text(html, encoding='utf-8')
+        except Exception:
+            pass
+        try:
+            ctx = page.context
+            urls = []
+            for p in ctx.pages:
+                try:
+                    urls.append(f'{p.title()}  ->  {p.url}')
+                except Exception:
+                    urls.append(p.url)
+            base.with_suffix('.txt').write_text(
+                'Ventanas abiertas:\n' + '\n'.join(urls), encoding='utf-8')
+        except Exception:
+            pass
+        if log:
+            log(f'Guardé diagnóstico en el Escritorio: {nombre}.png / .html / .txt')
+    except Exception:
+        pass
+
+
 def mensaje_error(e):
     """Traduce errores técnicos de Playwright a mensajes entendibles."""
     s = str(e)

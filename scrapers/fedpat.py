@@ -7,7 +7,10 @@ import time
 import re
 import json
 
-from scrapers.common import HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion
+from scrapers.common import (
+    HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion,
+    encontrar_pagina_con, guardar_diagnostico,
+)
 
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
@@ -75,7 +78,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
             pass
-        time.sleep(2)
+        time.sleep(3)
         esperar_verificacion(page, log)
         log(f'URL tras login: {page.url}')
 
@@ -92,6 +95,22 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                     break
             except Exception:
                 pass
+
+        # El portal es viejo (homeWin32.do) y puede abrir la aplicación en
+        # OTRA ventana tras el login. Buscamos en qué ventana está el menú
+        # y nos pasamos a ella; si no, seguimos en la actual.
+        log('Buscando la ventana de la aplicación...')
+        app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle', log, timeout=25)
+        if app_page is not None and app_page != page:
+            log('La aplicación se abrió en otra ventana; me cambio a ella.')
+            page = app_page
+            try:
+                page.bring_to_front()
+            except Exception:
+                pass
+        elif app_page is None:
+            log('No encontré el menú principal. Guardando diagnóstico...')
+            guardar_diagnostico(page, 'fedpat_postlogin', log)
 
         log('Abriendo Favoritos...')
         page.wait_for_selector('a.MsM_dropdownToggle', timeout=20000)
@@ -470,12 +489,9 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
     except Exception as e:
         import traceback
         log(f'Error: {traceback.format_exc()}')
-        # Captura de pantalla al Escritorio para ver dónde se trabó.
+        # Diagnóstico completo al Escritorio para ver dónde se trabó.
         try:
-            from pathlib import Path
-            destino = Path.home() / 'Desktop' / 'fedpat_error.png'
-            page.screenshot(path=str(destino), full_page=True)
-            log(f'Guardé una captura del error en: {destino}')
+            guardar_diagnostico(page, 'fedpat_error', log)
         except Exception:
             pass
         sessions[session_id]['resultados']['Federación'] = {
