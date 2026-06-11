@@ -7,7 +7,7 @@ import time
 import re
 import json
 
-from scrapers.common import HEADLESS, mensaje_error, abrir_fedpat
+from scrapers.common import HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion
 
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
@@ -48,18 +48,20 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                 '(puede frenarse en la verificación de seguridad).')
 
         log('Abriendo portal...')
-        # El portal tiene una "verificación de seguridad" (antibot) que puede
-        # demorar unos segundos. Esperamos a que aparezca el formulario de
-        # login (o sea, que el filtro nos haya dejado pasar), con reintentos.
+        # El portal tiene una "verificación de seguridad" (Cloudflare) que
+        # puede aparecer en cualquier momento. Si sale, esperamos a que la
+        # resuelvas a mano en la ventana de Chrome y recién ahí seguimos.
         for intento in (1, 2, 3):
             try:
                 page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
+                esperar_verificacion(page, log)
                 page.wait_for_selector('input#usuario', timeout=30000)
                 break
             except Exception:
                 if intento == 3:
                     raise
                 log(f'Verificación de seguridad / portal lento, reintentando ({intento}/3)...')
+                esperar_verificacion(page, log)
                 time.sleep(5)
         time.sleep(2)
 
@@ -74,6 +76,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         except Exception:
             pass
         time.sleep(2)
+        esperar_verificacion(page, log)
         log(f'URL tras login: {page.url}')
 
         # Si quedó alguna sesión anterior abierta, el portal puede mostrar un
@@ -102,6 +105,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
             pass
+        esperar_verificacion(page, log)
         page.wait_for_selector('input#documentoAsegurado', timeout=20000)
         time.sleep(2)
 

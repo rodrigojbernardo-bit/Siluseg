@@ -98,6 +98,58 @@ def abrir_fedpat(pw):
     return page, cerrar, False
 
 
+def esperar_verificacion(page, log=None, timeout=180):
+    """Si Cloudflare muestra la verificación, espera a que la resuelvas a mano.
+
+    Cloudflare puede pedir la verificación en cualquier momento. Como la
+    ventana de Chrome está a la vista, este helper detecta la pantalla de
+    'verificación de seguridad' y espera (hasta `timeout` segundos) a que
+    desaparezca, dándote tiempo a resolverla manualmente. No la 'saltea':
+    simplemente no avanza hasta que vos pasaste.
+
+    Devuelve True si está despejado para seguir.
+    """
+    import time as _t
+
+    # Frases/elementos típicos de la pantalla antibot de Cloudflare.
+    señales = [
+        "verificación de seguridad",
+        "verificacion de seguridad",
+        "verificando que usted",
+        "checking your browser",
+        "just a moment",
+        "un servicio de seguridad",
+        "no es un bot",
+    ]
+
+    def _hay_desafio():
+        try:
+            cuerpo = (page.inner_text("body", timeout=2000) or "").lower()
+        except Exception:
+            return False
+        return any(s in cuerpo for s in señales)
+
+    if not _hay_desafio():
+        return True
+
+    if log:
+        log("Cloudflare pidió verificación. Resolvela en la ventana de Chrome; "
+            "te espero...")
+
+    inicio = _t.time()
+    while _t.time() - inicio < timeout:
+        _t.sleep(3)
+        if not _hay_desafio():
+            if log:
+                log("Verificación superada, sigo.")
+            _t.sleep(2)
+            return True
+    if log:
+        log("Pasaron los minutos de espera y la verificación sigue. "
+            "Volvé a intentar la cotización.")
+    return False
+
+
 def mensaje_error(e):
     """Traduce errores técnicos de Playwright a mensajes entendibles."""
     s = str(e)
