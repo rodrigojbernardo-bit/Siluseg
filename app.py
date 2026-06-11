@@ -304,7 +304,8 @@ URL_LOGIN = (
 sessions = {}
 
 
-def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo, email=''):
+def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo, email='',
+                   apellido_nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
     s = sessions[session_id]
     q = s["queue"]
     model_event = s["model_event"]
@@ -322,7 +323,8 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         # ── Arrancar scrapers paralelos ──────────────────────────────────────
         meridional_thread = threading.Thread(
             target=meridional.run,
-            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo, email),
+            args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo, email,
+                  apellido_nombre, fecha_nacimiento, estado_civil),
             daemon=True,
         )
         meridional_thread.start()
@@ -803,6 +805,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/logo.png")
+def logo():
+    return send_file(str(_LOGO_PATH), mimetype="image/png")
+
+
 @app.route("/api/cotizar", methods=["POST"])
 def iniciar_cotizacion():
     data = request.json or {}
@@ -814,6 +821,9 @@ def iniciar_cotizacion():
     provincia = data.get("provincia", "BUENOS AIRES").strip().upper()
     sexo      = data.get("sexo", "M").strip().upper()
     email     = data.get("email", "").strip()
+    apellido_nombre  = data.get("apellido_nombre", "").strip().upper()
+    fecha_nacimiento = data.get("fecha_nacimiento", "").strip()
+    estado_civil     = data.get("estado_civil", "SOLTERO").strip().upper()
 
     if not all([dni, anio, marca, modelo, localidad]):
         return jsonify({"error": "Todos los campos son requeridos"}), 400
@@ -835,7 +845,8 @@ def iniciar_cotizacion():
 
     threading.Thread(
         target=run_automation,
-        args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo, email),
+        args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo, email,
+              apellido_nombre, fecha_nacimiento, estado_civil),
         daemon=True,
     ).start()
 

@@ -1,15 +1,14 @@
 """Envío de cotizaciones por email (SMTP).
 
-Configuración por variables de entorno (o editando los valores por defecto):
+Configurado para la casilla produccion@siluseg.com.ar (hosting Ferozo).
+Se puede sobreescribir cualquier valor con variables de entorno:
 
-  SMTP_HOST  servidor SMTP            (default: smtp.gmail.com)
-  SMTP_PORT  puerto con STARTTLS      (default: 587)
-  SMTP_USER  casilla que envía        (default: rodrigojbernardo@gmail.com)
-  SMTP_PASS  contraseña de aplicación (obligatoria; en Gmail se genera en
-             https://myaccount.google.com/apppasswords)
+  SMTP_HOST  servidor SMTP      (default: c2102521.ferozo.com)
+  SMTP_PORT  puerto             (default: 465, SSL directo)
+  SMTP_USER  casilla que envía  (default: produccion@siluseg.com.ar)
+  SMTP_PASS  contraseña
 
-Para Gmail NO sirve la contraseña normal de la cuenta: hay que activar la
-verificación en dos pasos y generar una "contraseña de aplicación".
+Con puerto 465 se usa SSL directo (SMTP_SSL); con 587, STARTTLS.
 """
 
 import os
@@ -17,10 +16,10 @@ import smtplib
 from email.message import EmailMessage
 from pathlib import Path
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "rodrigojbernardo@gmail.com")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
+SMTP_HOST = os.environ.get("SMTP_HOST", "c2102521.ferozo.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_USER = os.environ.get("SMTP_USER", "produccion@siluseg.com.ar")
+SMTP_PASS = os.environ.get("SMTP_PASS", "Naranja2024@")
 
 
 class ConfigError(Exception):
@@ -30,12 +29,11 @@ class ConfigError(Exception):
 def enviar_email(destinatario, asunto, cuerpo, adjunto_path=None):
     if not SMTP_PASS:
         raise ConfigError(
-            "Falta configurar SMTP_PASS (contraseña de aplicación del email). "
-            "Ver instrucciones en notifier.py / DESPLIEGUE.md"
+            "Falta configurar SMTP_PASS (contraseña de la casilla de email)."
         )
 
     msg = EmailMessage()
-    msg["From"] = SMTP_USER
+    msg["From"] = f"Siluseg Seguros <{SMTP_USER}>"
     msg["To"] = destinatario
     msg["Subject"] = asunto
     msg.set_content(cuerpo)
@@ -49,7 +47,12 @@ def enviar_email(destinatario, asunto, cuerpo, adjunto_path=None):
             filename=adjunto_path.name,
         )
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.send_message(msg)
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:
+            smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:
+            smtp.starttls()
+            smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.send_message(msg)

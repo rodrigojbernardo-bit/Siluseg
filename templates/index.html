@@ -15,17 +15,16 @@
     }
 
     header {
-      background: #1a365d;
+      background: #222f5b;
       color: white;
-      padding: 18px 32px;
+      padding: 16px 32px;
       display: flex;
       align-items: center;
       gap: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
-    header .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-    header .logo span { color: #fc8181; }
-    header .sub { font-size: 13px; color: #a0aec0; }
+    /* Logo en blanco sobre el fondo azul */
+    header .logo-img { height: 48px; filter: brightness(0) invert(1); }
 
     main {
       max-width: 680px;
@@ -212,10 +211,7 @@
 <body>
 
 <header>
-  <div>
-    <div class="logo">Silu<span>seg</span></div>
-    <div class="sub">Cotizador Automotor — Sancor · Meridional · Federación Patronal</div>
-  </div>
+  <img class="logo-img" src="/logo.png" alt="Siluseg" />
 </header>
 
 <main>
@@ -228,6 +224,23 @@
         <div class="form-group">
           <label>DNI del cliente</label>
           <input type="text" id="dni" placeholder="Ej: 28735717" required />
+        </div>
+        <div class="form-group">
+          <label>Apellido y Nombre</label>
+          <input type="text" id="apellido-nombre" placeholder="Ej: BERNARDO RODRIGO (apellido primero)" required />
+        </div>
+        <div class="form-group">
+          <label>Fecha de nacimiento</label>
+          <input type="date" id="fecha-nacimiento" required />
+        </div>
+        <div class="form-group">
+          <label>Estado civil</label>
+          <select id="estado-civil">
+            <option value="SOLTERO" selected>Soltero/a</option>
+            <option value="CASADO">Casado/a</option>
+            <option value="DIVORCIADO">Divorciado/a</option>
+            <option value="VIUDO">Viudo/a</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Año del vehículo</label>
@@ -456,6 +469,9 @@
     const provincia = document.getElementById('provincia').value;
     const sexo     = document.getElementById('sexo').value;
     const email    = document.getElementById('email').value.trim();
+    const apellido_nombre  = document.getElementById('apellido-nombre').value.trim().toUpperCase();
+    const fecha_nacimiento = document.getElementById('fecha-nacimiento').value;
+    const estado_civil     = document.getElementById('estado-civil').value;
 
     btnCotizar.disabled = true;
     btnCotizar.innerHTML = '<span class="spinner"></span> Iniciando...';
@@ -467,7 +483,8 @@
       const res = await fetch('/api/cotizar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo, email }),
+        body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo, email,
+                               apellido_nombre, fecha_nacimiento, estado_civil }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al iniciar cotización');
@@ -644,6 +661,9 @@
     document.getElementById('badge').style.cssText = 'background:#f0fff4;color:#276749;margin-left:12px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;';
     document.getElementById('done-filename').textContent = filename;
     document.getElementById('btn-descargar').href = `/api/pdf/${filename}`;
+    // Precompletar el destinatario con el email cargado en el formulario
+    const emailCliente = document.getElementById('email').value.trim();
+    if (emailCliente) document.getElementById('email-destino').value = emailCliente;
     show('section-done');
     document.getElementById('section-done').scrollIntoView({ behavior: 'smooth' });
     btnCotizar.disabled = false;

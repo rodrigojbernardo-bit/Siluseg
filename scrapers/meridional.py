@@ -49,7 +49,8 @@ def _select2_pick(page, search_text, option_text, timeout=15000):
     time.sleep(1)
 
 
-def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M', email=''):
+def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M', email='',
+        apellido_nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
     s = sessions[session_id]
     q = s['queue']
 
@@ -235,17 +236,24 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         cotizador.fill('input#coNroDocumento', dni)
         time.sleep(0.5)
 
-        log('Ingresando apellido...')
-        cotizador.fill('input#coApellidoRazonSocial', 'BERNARDO')
+        # Apellido y nombre del formulario ("APELLIDO NOMBRE(S)"):
+        # primera palabra = apellido, el resto = nombres.
+        partes   = (apellido_nombre or '').split()
+        apellido = partes[0] if partes else 'BERNARDO'
+        nombres  = ' '.join(partes[1:]) if len(partes) > 1 else (partes[0] if partes else 'RODRIGO BERNARDO')
+
+        log(f'Ingresando apellido: {apellido}...')
+        cotizador.fill('input#coApellidoRazonSocial', apellido)
         time.sleep(0.3)
 
-        log('Ingresando nombre...')
-        cotizador.fill('input#coNombres', 'RODRIGO BERNARDO')
+        log(f'Ingresando nombre: {nombres}...')
+        cotizador.fill('input#coNombres', nombres)
         time.sleep(0.3)
 
-        log('Seleccionando estado civil: SOLTERO...')
+        civil = (estado_civil or 'SOLTERO').upper()
+        log(f'Seleccionando estado civil: {civil}...')
         _select2_open(cotizador, 'coEstadoCivil')
-        _select2_pick(cotizador, 'SOLTERO', 'SOLTERO')
+        _select2_pick(cotizador, civil, civil)
         log('Estado civil OK.')
         time.sleep(1)
 
@@ -257,8 +265,16 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         time.sleep(1)
 
         # ── FECHA DE NACIMIENTO ───────────────────────────────────────────────
-        log('Ingresando fecha de nacimiento...')
-        cotizador.fill('input#coFechaNacimiento', '01/01/1980')
+        # El formulario web la manda como AAAA-MM-DD; Meridional pide DD/MM/AAAA.
+        fecha = '01/01/1980'
+        if fecha_nacimiento:
+            try:
+                a, m, d = fecha_nacimiento.split('-')
+                fecha = f'{d}/{m}/{a}'
+            except Exception:
+                fecha = fecha_nacimiento  # ya viene DD/MM/AAAA
+        log(f'Ingresando fecha de nacimiento: {fecha}...')
+        cotizador.fill('input#coFechaNacimiento', fecha)
         cotizador.press('input#coFechaNacimiento', 'Tab')
         time.sleep(0.5)
 
