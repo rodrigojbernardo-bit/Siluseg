@@ -45,7 +45,19 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         page = context.new_page()
 
         log('Abriendo portal...')
-        page.goto(URL_LOGIN, wait_until="networkidle", timeout=30000)
+        # "networkidle" es frágil: si el portal tarda o deja conexiones
+        # abiertas, nunca se cumple. Esperamos el formulario de login
+        # directamente, con reintentos.
+        for intento in (1, 2, 3):
+            try:
+                page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_selector('input#usuario', timeout=20000)
+                break
+            except Exception:
+                if intento == 3:
+                    raise
+                log(f'El portal tarda en responder, reintentando ({intento}/3)...')
+                time.sleep(3)
         time.sleep(2)
 
         log('Ingresando credenciales...')
@@ -54,7 +66,10 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         page.fill('input#password', PASSWORD)
         time.sleep(1)
         page.click('input[name="Aceptar"]')
-        page.wait_for_load_state("networkidle", timeout=15000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         time.sleep(2)
         log(f'URL tras login: {page.url}')
 
@@ -64,7 +79,10 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
 
         log('Clickeando Nueva Cotizacion Automotor...')
         page.click('a[href="/self/newCotizacion.do"]')
-        page.wait_for_load_state("networkidle", timeout=15000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         time.sleep(2)
 
         log(f'Ingresando DNI {dni}...')
