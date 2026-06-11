@@ -7,7 +7,7 @@ import time
 import re
 import json
 
-from scrapers.common import HEADLESS, mensaje_error, lanzar_navegador
+from scrapers.common import HEADLESS, mensaje_error, abrir_fedpat
 
 USUARIO   = "30658"
 PASSWORD  = "Termo2025"
@@ -35,13 +35,17 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         q.put({'type': 'log', 'msg': f'[FedPat] {msg}'})
 
     pw = None
-    browser = None
-    context = None
+    cerrar_nav = None
 
     try:
         log('Iniciando navegador...')
         pw = sync_playwright().start()
-        context, page = lanzar_navegador(pw, perfil='fedpat')
+        page, cerrar_nav, chrome_real = abrir_fedpat(pw)
+        if chrome_real:
+            log('Conectado a tu Chrome (pasa la verificación de seguridad).')
+        else:
+            log('No encontré un Chrome abierto; usando navegador propio '
+                '(puede frenarse en la verificación de seguridad).')
 
         log('Abriendo portal...')
         # El portal tiene una "verificación de seguridad" (antibot) que puede
@@ -453,7 +457,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         }
     finally:
         try:
-            if context: context.close()
+            if cerrar_nav: cerrar_nav()
         except Exception:
             pass
         try:

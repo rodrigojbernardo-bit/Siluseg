@@ -62,6 +62,42 @@ def lanzar_navegador(pw, perfil, headless=None):
     return context, page
 
 
+def abrir_fedpat(pw):
+    """Abre Federación reutilizando un Chrome real ya abierto por el usuario.
+
+    Si hay un Chrome escuchando en el puerto de depuración (lo abre el
+    archivo chrome_cotizador.bat), se conecta a ÉL: es un navegador de
+    verdad, con la confianza de Cloudflare, así pasa la verificación de
+    seguridad igual que cuando navegás a mano.
+
+    Si no hay ninguno, cae al navegador propio con perfil persistente.
+    Devuelve (page, cerrar) — llamar cerrar() al terminar.
+    """
+    port = os.environ.get("COTI_CHROME_PORT", "9222")
+    try:
+        browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
+        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+
+        def cerrar():
+            # No cerramos el Chrome del usuario: solo soltamos la conexión.
+            pass
+
+        return page, cerrar, True  # conectado a Chrome real
+    except Exception:
+        pass
+
+    context, page = lanzar_navegador(pw, perfil='fedpat')
+
+    def cerrar():
+        try:
+            context.close()
+        except Exception:
+            pass
+
+    return page, cerrar, False
+
+
 def mensaje_error(e):
     """Traduce errores técnicos de Playwright a mensajes entendibles."""
     s = str(e)
