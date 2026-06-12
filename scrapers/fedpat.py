@@ -343,6 +343,15 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                         }
                     }
                 }
+                // El valor puede estar dentro de un campo de formulario
+                // (input), que no aparece en el texto de la página.
+                for (const inp of document.querySelectorAll('input')) {
+                    const idn = ((inp.id || '') + ' ' + (inp.name || '')).toLowerCase();
+                    if (/suma|capital|valorveh|valoraseg/.test(idn)) {
+                        const v = (inp.value || '').replace(/[^\d.,]/g, '');
+                        if (v.replace(/[.,]/g, '').length >= 4) return '$' + v;
+                    }
+                }
                 return '';
             }
         """

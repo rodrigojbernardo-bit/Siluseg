@@ -238,18 +238,99 @@ def main():
     ct.setStyle(TableStyle(ts))
     story.append(ct)
 
-    # ── Barra azul inferior ───────────────────────────────────────────────────
-    story.append(Spacer(1, 0.3 * cm))
-    story.append(_barra_azul(
-        '<font name="Helvetica" size="7.5" color="#ffffff">'
-        'Esta cotización es orientativa y está sujeta a las condiciones de cada aseguradora. '
-        'Validez: 30 días desde la fecha de emisión.'
-        '&nbsp;&nbsp;|&nbsp;&nbsp;'
-        'www.siluseg.com.ar'
-        '&nbsp;&nbsp;|&nbsp;&nbsp;'
-        'WhatsApp: +54 9 11 3450-1751'
+    # ── Aclaración importante (leyenda con barrita azul a la izquierda) ──────
+    story.append(Spacer(1, 0.35 * cm))
+
+    leyenda_txt = (
+        '<font name="Helvetica-Bold" size="8" color="#444444">Aclaración importante:</font><br/>'
+        '<font name="Helvetica" size="7.5" color="#444444">'
+        'Los valores son a título orientativo. Los mismos se encuentran sujetos a '
+        'modificaciones hasta tanto no se efectivice la solicitud formal. La aceptación '
+        'de la cobertura quedará sujeta al análisis previo del Área de Suscripción de '
+        'cada Aseguradora. Ante cualquier consulta podés comunicarte con Nosotros por '
+        'medio del WhatsApp +5491134501751 o llamando al +5491134501751 en el horario '
+        'de Lunes a Viernes de 10 a 17 hs.'
         '</font>'
-    ))
+    )
+    leyenda = Table(
+        [['', Paragraph(leyenda_txt, ps('ley', leading=10))]],
+        colWidths=[0.13 * cm, usable - 0.13 * cm],
+    )
+    leyenda.setStyle(TableStyle([
+        # La barrita azul ocupa exactamente la altura del texto
+        ('BACKGROUND',    (0, 0), (0, 0), BLUE),
+        ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING',   (0, 0), (0, 0), 0),
+        ('RIGHTPADDING',  (0, 0), (0, 0), 0),
+        ('LEFTPADDING',   (1, 0), (1, 0), 8),
+        ('RIGHTPADDING',  (1, 0), (1, 0), 0),
+        ('TOPPADDING',    (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(leyenda)
+
+    # ── Banner promocional (foto + mensaje + CTA WhatsApp) ───────────────────
+    story.append(Spacer(1, 0.3 * cm))
+
+    BORDO    = colors.HexColor('#6e1d36')   # bordó de la paleta del logo
+    banner_h = 2.5 * cm
+    img_w    = 4.6 * cm
+    cta_w    = 5.6 * cm
+    mid_w    = usable - img_w - cta_w
+
+    # Foto de la casa: Casa_Banner.jpg/png en la carpeta principal de la app
+    banner_dir = Path(__file__).resolve().parent.parent
+    casa_img = None
+    for nombre in ('Casa_Banner.jpg', 'Casa_Banner.png', 'Casa_Banner.jpeg'):
+        p = banner_dir / nombre
+        if p.exists():
+            try:
+                casa_img = RLImage(str(p), width=img_w, height=banner_h)
+                break
+            except Exception:
+                casa_img = None
+
+    msj_mid = Paragraph(
+        '<font name="Helvetica-Bold" size="12" color="#ffffff">Asegurá tu Auto</font><br/>'
+        '<font name="Helvetica-Bold" size="9.5" color="#f3b3c4">y Conseguí un 10% OFF<br/>'
+        'en el Seguro de tu Hogar</font>',
+        ps('bm', alignment=TA_CENTER, leading=14)
+    )
+    msj_cta = Paragraph(
+        '<font name="Helvetica-Bold" size="10" color="#ffffff">Cotizá todos tus seguros</font><br/>'
+        '<font name="Helvetica" size="8.5" color="#ffffff">Escribinos al WhatsApp</font><br/>'
+        '<font name="Helvetica-Bold" size="10" color="#ffffff">+54 9 11 3450-1751</font>',
+        ps('bc', alignment=TA_CENTER, leading=13)
+    )
+
+    if casa_img is not None:
+        banner_cells = [casa_img, msj_mid, msj_cta]
+        banner_cols  = [img_w, mid_w, cta_w]
+    else:
+        banner_cells = [msj_mid, msj_cta]
+        banner_cols  = [usable - cta_w, cta_w]
+
+    banner = Table([banner_cells], colWidths=banner_cols, rowHeights=[banner_h])
+    bstyle = [
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND',    (0, 0), (-1, -1), BLUE),
+        # Última columna (CTA WhatsApp) en bordó
+        ('BACKGROUND',    (-1, 0), (-1, 0), BORDO),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]
+    if casa_img is not None:
+        # La foto pegada al borde, sin padding
+        bstyle += [
+            ('LEFTPADDING',   (0, 0), (0, 0), 0),
+            ('RIGHTPADDING',  (0, 0), (0, 0), 0),
+            ('TOPPADDING',    (0, 0), (0, 0), 0),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 0),
+        ]
+    banner.setStyle(TableStyle(bstyle))
+    story.append(banner)
 
     doc.build(story)
     print("OK")
