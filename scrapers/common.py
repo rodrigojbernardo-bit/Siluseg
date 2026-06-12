@@ -192,6 +192,38 @@ def encontrar_pagina_con(context, selector, log=None, timeout=30):
     return None
 
 
+def encontrar_ui_con(context, selector, log=None, timeout=30):
+    """Busca `selector` en todas las ventanas Y sus marcos internos.
+
+    Devuelve la Page o el Frame donde está el elemento (ambos soportan
+    fill/click/evaluate/wait_for_selector), o None si no aparece.
+    Necesario porque el portal de Federación es viejo: puede abrir el
+    contenido en otra ventana o dentro de un marco (frame).
+    """
+    import time as _t
+    inicio = _t.time()
+    while _t.time() - inicio < timeout:
+        for p in list(context.pages):
+            try:
+                if p.query_selector(selector):
+                    return p
+            except Exception:
+                pass
+            try:
+                for fr in p.frames:
+                    try:
+                        if fr != p.main_frame and fr.query_selector(selector):
+                            if log:
+                                log('(el contenido está dentro de un marco de la página)')
+                            return fr
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        _t.sleep(1)
+    return None
+
+
 def guardar_diagnostico(page, nombre='diagnostico', log=None):
     """Guarda en el Escritorio una foto + el HTML + las URLs de las ventanas.
 
@@ -199,6 +231,8 @@ def guardar_diagnostico(page, nombre='diagnostico', log=None):
     sin tener que estar mirando en vivo.
     """
     try:
+        # Si llega un Frame, trabajar con su Page contenedora.
+        page = getattr(page, 'page', page)
         from pathlib import Path
         escritorio = Path.home() / 'Desktop'
         if not escritorio.exists():

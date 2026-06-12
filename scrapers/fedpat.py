@@ -9,7 +9,7 @@ import json
 
 from scrapers.common import (
     HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion,
-    encontrar_pagina_con, guardar_diagnostico,
+    encontrar_pagina_con, encontrar_ui_con, guardar_diagnostico,
 )
 
 USUARIO   = "30658"
@@ -107,36 +107,36 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             except Exception:
                 pass
 
-        # Ir DIRECTO a Nueva Cotización por la dirección (más robusto que el
-        # menú Favoritos, que cambia o se abre en otra ventana).
-        log('Abriendo Nueva Cotización Automotor...')
-        try:
-            page.goto('https://online.fedpat.com.ar/self/newCotizacion.do',
-                      wait_until="domcontentloaded", timeout=30000)
+        # Ir a Nueva Cotización POR EL MENÚ. El acceso directo por URL no
+        # sirve: el portal lo rebota a la página de inicio (homeWin32.do).
+        log('Abriendo Nueva Cotización Automotor (por el menú)...')
+        if 'homeWin32' not in page.url:
+            page.goto(URL_LOGIN, wait_until='domcontentloaded', timeout=30000)
             esperar_verificacion(page, log)
-        except Exception:
-            # Plan B: por el menú Favoritos, eventualmente en otra ventana.
-            log('No pude ir directo; intento por el menú Favoritos...')
-            app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle', log, timeout=25)
-            if app_page is not None and app_page != page:
-                page = app_page
-                try: page.bring_to_front()
-                except Exception: pass
-            page.click('a.MsM_dropdownToggle')
-            time.sleep(1)
-            page.click('a[href="/self/newCotizacion.do"]')
+            time.sleep(3)
 
-        try:
-            page.wait_for_load_state("networkidle", timeout=15000)
-        except Exception:
-            pass
+        # El menú puede estar en otra ventana o dentro de un marco.
+        menu = encontrar_ui_con(page.context, 'a.MsM_dropdownToggle', log, timeout=20)
+        if menu is None:
+            guardar_diagnostico(page, 'fedpat_sinmenu', log)
+            raise Exception('No encontré el menú principal de Federación '
+                            '(guardé diagnóstico en el Escritorio).')
+        menu.click('a.MsM_dropdownToggle')
+        time.sleep(1.5)
+        menu.click('a[href="/self/newCotizacion.do"]')
+        time.sleep(3)
         esperar_verificacion(page, log)
-        # Si el formulario no aparece, guardamos diagnóstico para ver qué pasó.
-        try:
-            page.wait_for_selector('input#documentoAsegurado', timeout=25000)
-        except Exception:
+
+        # Buscar el formulario de cotización en cualquier ventana o marco.
+        form_ui = encontrar_ui_con(page.context, 'input#documentoAsegurado', log, timeout=30)
+        if form_ui is None:
             guardar_diagnostico(page, 'fedpat_nuevacotizacion', log)
-            raise
+            raise Exception('No apareció el formulario de Nueva Cotización '
+                            '(guardé diagnóstico en el Escritorio).')
+        # Page y Frame comparten fill/click/evaluate/etc.: seguimos sobre
+        # donde realmente está el formulario.
+        page = form_ui
+        log('Formulario de cotización encontrado.')
         time.sleep(2)
 
         log(f'Ingresando DNI {dni}...')
