@@ -56,18 +56,27 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         # resuelvas a mano en la ventana de Chrome y recién ahí seguimos.
         page.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=45000)
         esperar_verificacion(page, log)
-        time.sleep(2)
+        # Tras pasar Cloudflare, la página redirige y se reacomoda: darle
+        # unos segundos antes de tocar nada, o el login sale en falso.
+        log('Dejando que la página termine de cargar...')
+        time.sleep(5)
 
         # Puede que ya estés logueado (tu Chrome mantiene la sesión). Solo
         # iniciamos sesión si aparece el formulario de login.
         ya_logueado = True
         try:
-            page.wait_for_selector('input#usuario', timeout=8000)
+            page.wait_for_selector('input#usuario', timeout=12000)
             ya_logueado = False
         except Exception:
             ya_logueado = True
 
         if not ya_logueado:
+            # Confirmar que el formulario quedó estable (que Cloudflare no
+            # esté todavía recargando la página por atrás).
+            time.sleep(2)
+            esperar_verificacion(page, log)
+            page.wait_for_selector('input#usuario', timeout=12000)
+
             log('Ingresando credenciales...')
             page.fill('input#usuario', USUARIO)
             time.sleep(1)

@@ -135,7 +135,11 @@ def esperar_verificacion(page, log=None, timeout=180):
         return any(s in cuerpo for s in señales)
 
     if not _hay_desafio():
-        return True
+        # El desafío puede tardar un instante en aparecer; mirar de nuevo
+        # antes de dar el OK.
+        _t.sleep(2)
+        if not _hay_desafio():
+            return True
 
     if log:
         log("Cloudflare pidió verificación. Resolvela en la ventana de Chrome; "
@@ -146,8 +150,11 @@ def esperar_verificacion(page, log=None, timeout=180):
         _t.sleep(3)
         if not _hay_desafio():
             if log:
-                log("Verificación superada, sigo.")
-            _t.sleep(2)
+                log("Verificación superada. Espero unos segundos a que "
+                    "termine de procesar...")
+            # Cloudflare redirige y recarga después de verificar: darle
+            # tiempo a que termine antes de tocar la página.
+            _t.sleep(5)
             return True
     if log:
         log("Pasaron los minutos de espera y la verificación sigue. "
