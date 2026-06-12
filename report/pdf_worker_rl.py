@@ -239,11 +239,11 @@ def main():
     story.append(ct)
 
     # ── Aclaración importante (leyenda con barrita azul a la izquierda) ──────
-    story.append(Spacer(1, 0.35 * cm))
+    story.append(Spacer(1, 1.4 * cm))
 
     leyenda_txt = (
-        '<font name="Helvetica-Bold" size="8" color="#444444">Aclaración importante:</font><br/>'
-        '<font name="Helvetica" size="7.5" color="#444444">'
+        '<font name="Helvetica-Bold" size="8" color="#888888">Aclaración importante:</font><br/>'
+        '<font name="Helvetica" size="7.5" color="#888888">'
         'Los valores son a título orientativo. Los mismos se encuentran sujetos a '
         'modificaciones hasta tanto no se efectivice la solicitud formal. La aceptación '
         'de la cobertura quedará sujeta al análisis previo del Área de Suscripción de '
@@ -254,7 +254,7 @@ def main():
     )
     leyenda = Table(
         [['', Paragraph(leyenda_txt, ps('ley', leading=10))]],
-        colWidths=[0.13 * cm, usable - 0.13 * cm],
+        colWidths=[0.07 * cm, usable - 0.07 * cm],
     )
     leyenda.setStyle(TableStyle([
         # La barrita azul ocupa exactamente la altura del texto
@@ -270,7 +270,7 @@ def main():
     story.append(leyenda)
 
     # ── Banner promocional (foto + mensaje + CTA WhatsApp) ───────────────────
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.6 * cm))
 
     BORDO    = colors.HexColor('#6e1d36')   # bordó de la paleta del logo
     banner_h = 2.5 * cm
