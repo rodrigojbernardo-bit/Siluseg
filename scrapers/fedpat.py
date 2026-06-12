@@ -318,10 +318,11 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         cuota_cf = cf_data['resultado']
         log(f'CF resultado: {cuota_cf}')
 
-        # Extraer suma asegurada en la página de resultados CF
-        capital_text = page.evaluate(r"""
+        # Extraer suma asegurada — buscando en TODOS los marcos de la página,
+        # porque el portal viejo reparte el contenido entre varios frames.
+        _patron_capital = r"""
             () => {
-                const txt = document.body.innerText;
+                const txt = (document.body && document.body.innerText) || '';
                 const pats = [
                     /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
                     /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
@@ -344,8 +345,29 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
                 }
                 return '';
             }
-        """)
-        log(f'Capital FedPat: {capital_text or "(no encontrado)"}')
+        """
+
+        def _extraer_capital():
+            # Página/Frame actual + todos los demás marcos de la ventana.
+            destinos = [page]
+            try:
+                pg = getattr(page, 'page', None) or page
+                destinos += [f for f in pg.frames if f is not page]
+            except Exception:
+                pass
+            for d in destinos:
+                try:
+                    val = d.evaluate(_patron_capital)
+                    if val:
+                        return val
+                except Exception:
+                    continue
+            return ''
+
+        capital_text = _extraer_capital()
+        if not capital_text:
+            guardar_diagnostico(page, 'fedpat_sumaasegurada', log)
+        log(f'Capital FedPat: {capital_text or "(no encontrado, guardé diagnóstico)"}')
 
         # TD3 6%
         log('Cotizando TD3 6%...')
@@ -455,24 +477,10 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         """)
         log(f'TD3 2%: ${cuota_td3_2}')
 
-        # Fallback capital desde la última página si no se encontró en CF
+        # Fallback capital desde la última página (todos los marcos) si no
+        # se encontró en CF.
         if not capital_text:
-            capital_text = page.evaluate(r"""
-                () => {
-                    const txt = document.body.innerText;
-                    const pats = [
-                        /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
-                        /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
-                        /valor\s+a\s+nuevo[\s\S]{0,80}\$([\d.,]+)/i,
-                    ];
-                    for (const p of pats) {
-                        const m = txt.match(p);
-                        if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
-                            return '$' + m[1].trim();
-                    }
-                    return '';
-                }
-            """)
+            capital_text = _extraer_capital()
             if capital_text:
                 log(f'Capital FedPat (fallback TD3 2%): {capital_text}')
 

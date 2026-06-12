@@ -25,4 +25,6 @@ if not exist "%CHROME%" (
   exit /b 1
 )
 
-start "" "%CHROME%" --remote-debugging-port=%PUERTO% --user-data-dir="%PERFIL%" "https://online.fedpat.com.ar/self/homeWin32.do"
+:: /min abre la ventana minimizada para que no te moleste; sigue
+:: disponible en la barra de tareas por si Cloudflare pide verificacion.
+start "" /min "%CHROME%" --remote-debugging-port=%PUERTO% --user-data-dir="%PERFIL%" --window-position=2000,2000 "https://online.fedpat.com.ar/self/homeWin32.do"
