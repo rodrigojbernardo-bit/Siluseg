@@ -9,7 +9,7 @@ import json
 
 from scrapers.common import (
     HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion,
-    pasar_turnstile, encontrar_pagina_con, encontrar_ui_con,
+    marcar_check_cloudflare, encontrar_pagina_con, encontrar_ui_con,
     guardar_diagnostico,
 )
 
@@ -78,14 +78,17 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             page.fill('input#usuario', USUARIO)
             time.sleep(1)
             page.fill('input#password', PASSWORD)
-            time.sleep(1)
 
-            # Cloudflare Turnstile: esperar a que se complete el token
-            # (clickeando el recuadro si aparece) ANTES de Ingresar.
-            pasar_turnstile(page, log, timeout=60)
+            # Secuencia simple: esperar 6s, clic en el check de Cloudflare,
+            # esperar 6s a que se verifique, y recién ahí Ingresar.
+            log('Espero 6s a que aparezca la verificación...')
+            time.sleep(6)
+            marcar_check_cloudflare(page, log)
+            log('Espero 6s a que se verifique...')
+            time.sleep(6)
 
             log('Clic en Ingresar...')
-            page.click('input[name="Aceptar"]')
+            page.click('input[name="Aceptar"]', timeout=10000)
             try:
                 page.wait_for_load_state("networkidle", timeout=15000)
             except Exception:

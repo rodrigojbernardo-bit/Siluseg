@@ -243,6 +243,13 @@ def pasar_turnstile(page, log=None, timeout=60):
     return False
 
 
+def marcar_check_cloudflare(page, log=None):
+    """Hace clic en la casilla <input type=checkbox> de Cloudflare (una pasada,
+    sin bucles largos). Devuelve True si clickeó algo."""
+    pg = getattr(page, 'page', None) or page
+    return _click_turnstile(pg, log)
+
+
 def _click_turnstile(pg, log=None):
     """Hace clic en la casilla (<input type=checkbox>) de Cloudflare.
 
@@ -270,15 +277,18 @@ def _click_turnstile(pg, log=None):
     marcos.sort(key=lambda f: 0 if _es_cf(f) else 1)
 
     for fr in marcos:
-        for sel in ('input[type="checkbox"]', 'label', 'body'):
+        es_cf = _es_cf(fr)
+        # En cualquier marco: el checkbox real. En marcos de Cloudflare:
+        # además el body por posición (el check está arriba a la izquierda).
+        selectores = ['input[type="checkbox"]']
+        if es_cf:
+            selectores.append('body')
+        for sel in selectores:
             try:
                 el = fr.query_selector(sel)
                 if not el:
                     continue
                 if sel == 'body':
-                    # solo clickear body si el marco es de Cloudflare (el check)
-                    if not _es_cf(fr):
-                        continue
                     el.click(position={'x': 30, 'y': 30}, force=True, timeout=2500)
                 else:
                     el.click(force=True, timeout=2500)
@@ -426,6 +436,10 @@ def esperar_verificacion(page, log=None, timeout=180):
         "un servicio de seguridad",
         "no es un bot",
         "needs to review the security",
+        "verificar que sos un humano",
+        "verifica que sos un humano",
+        "verificar que eres humano",
+        "verify you are human",
     ]
 
     def _hay_desafio():
