@@ -158,13 +158,18 @@ def abrir_fedpat(pw, log=None):
         try:
             browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
             ctx = browser.contexts[0] if browser.contexts else browser.new_context()
-            page = ctx.new_page()
+            # Usar la pestaña que ya abrió el Chrome (la que se ve en pantalla,
+            # donde Turnstile se dibuja). Si no hay, abrir una.
+            paginas = [p for p in ctx.pages if not p.is_closed()] if ctx.pages else []
+            page = paginas[0] if paginas else ctx.new_page()
+            try:
+                page.bring_to_front()
+            except Exception:
+                pass
 
             def cerrar():
-                try:
-                    page.close()
-                except Exception:
-                    pass
+                # No cerramos la pestaña: es el Chrome propio del cotizador.
+                pass
 
             return page, cerrar, True
         except Exception:
@@ -263,39 +268,53 @@ def _click_turnstile(pg, log=None):
     except Exception:
         pass
 
-    # 2) Clic por coordenadas sobre el iframe del widget Cloudflare.
-    #    Priorizamos el iframe dentro de div.cf-turnstile.
+    # 2) Clic sobre el iframe del widget Cloudflare (Turnstile).
+    #    Priorizamos el iframe dentro de div.cf-turnstile y clickeamos en su
+    #    posición RELATIVA (x≈30, y≈33), donde está el check. Playwright
+    #    rutea el clic dentro del iframe.
     try:
-        iframes = pg.query_selector_all('div.cf-turnstile iframe') or []
-    except Exception:
-        iframes = []
-    try:
-        iframes = iframes + (pg.query_selector_all('iframe') or [])
+        pg.bring_to_front()
     except Exception:
         pass
-    for el in iframes:
+    listas = []
+    for sel in ('div.cf-turnstile iframe',
+                'iframe[src*="challenges.cloudflare.com"]',
+                'iframe[title*="Cloudflare"]',
+                'iframe[title*="challenge"]',
+                'iframe[title*="seguridad"]',
+                'iframe[title*="human"]'):
         try:
-            src = (el.get_attribute('src') or '')
-            title = (el.get_attribute('title') or '')
+            listas += (pg.query_selector_all(sel) or [])
+        except Exception:
+            pass
+    # como respaldo, cualquier iframe chico
+    try:
+        for el in (pg.query_selector_all('iframe') or []):
+            b = el.bounding_box()
+            if b and b['width'] < 450 and b['height'] < 120:
+                listas.append(el)
+    except Exception:
+        pass
+
+    for el in listas:
+        try:
+            try:
+                el.scroll_into_view_if_needed(timeout=1500)
+            except Exception:
+                pass
             box = el.bounding_box()
             if not box:
                 continue
-            es_cf = ('cloudflare' in src.lower() or 'challenge' in src.lower()
-                     or 'turnstile' in src.lower() or 'cloudflare' in title.lower()
-                     or 'challenge' in title.lower() or 'human' in title.lower())
-            es_chico = box['width'] < 450 and box['height'] < 120
-            if not (es_cf or es_chico):
-                continue
+            # Posición del check dentro del widget (esquina izquierda).
+            px = min(30, box['width'] / 2)
+            py = box['height'] / 2
             try:
-                el.scroll_into_view_if_needed(timeout=1500)
-                box = el.bounding_box() or box
+                el.click(position={'x': px, 'y': py}, force=True, timeout=3000)
             except Exception:
-                pass
-            x = box['x'] + 32                 # el check está a la izquierda
-            y = box['y'] + box['height'] / 2
-            pg.mouse.click(x, y)
+                # Respaldo: clic por coordenadas absolutas de pantalla
+                pg.mouse.click(box['x'] + px, box['y'] + py)
             if log:
-                log("Clic en la verificación de Cloudflare (por posición).")
+                log("Clic en la casilla de Cloudflare (Turnstile).")
             return True
         except Exception:
             continue
