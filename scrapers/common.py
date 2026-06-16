@@ -342,14 +342,10 @@ def _click_turnstile(pg, log=None):
 
 
 def _dump_login(pg, log=None):
-    """Guarda en el Escritorio la página de login (foto + HTML + lista de
-    marcos) para poder ver cómo es la casilla de Cloudflare."""
+    """Guarda la página de login (foto + HTML + lista de marcos) en la carpeta
+    del cotizador, para ver cómo es la casilla de Cloudflare."""
     try:
-        from pathlib import Path
-        d = Path.home() / 'Desktop'
-        if not d.exists():
-            d = Path.home()
-        base = d / 'fedpat_login'
+        base = _carpeta_diag() / 'fedpat_login'
         try:
             pg.screenshot(path=str(base.with_suffix('.png')), full_page=True)
         except Exception:
@@ -545,14 +541,27 @@ def guardar_diagnostico(page, nombre='diagnostico', log=None):
     Sirve para ver exactamente en qué pantalla se trabó la automatización
     sin tener que estar mirando en vivo.
     """
+def _carpeta_diag():
+    """Carpeta 'diagnostico' dentro de la app (siempre fácil de encontrar)."""
+    from pathlib import Path
+    d = Path(__file__).resolve().parent.parent / 'diagnostico'
+    try:
+        d.mkdir(exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
+def guardar_diagnostico(page, nombre='diagnostico', log=None):
+    """Guarda foto + HTML + URLs de las ventanas en la carpeta del cotizador.
+
+    Sirve para ver exactamente en qué pantalla se trabó la automatización
+    sin tener que estar mirando en vivo.
+    """
     try:
         # Si llega un Frame, trabajar con su Page contenedora.
         page = getattr(page, 'page', page)
-        from pathlib import Path
-        escritorio = Path.home() / 'Desktop'
-        if not escritorio.exists():
-            escritorio = Path.home()
-        base = escritorio / nombre
+        base = _carpeta_diag() / nombre
         try:
             page.screenshot(path=str(base.with_suffix('.png')), full_page=True)
         except Exception:
@@ -575,7 +584,7 @@ def guardar_diagnostico(page, nombre='diagnostico', log=None):
         except Exception:
             pass
         if log:
-            log(f'Guardé diagnóstico en el Escritorio: {nombre}.png / .html / .txt')
+            log(f'Guardé diagnóstico en la carpeta "diagnostico": {nombre}.png/.html/.txt')
     except Exception:
         pass
 

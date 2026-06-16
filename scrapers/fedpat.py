@@ -94,11 +94,17 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             except Exception:
                 pass
             time.sleep(3)
-            esperar_verificacion(page, log)
+            esperar_verificacion(page, log, timeout=20)
         else:
             log('Ya había una sesión abierta, no hace falta loguear.')
 
-        log(f'URL actual: {page.url}')
+        # Diagnóstico de estado tras el login
+        try:
+            ventanas = [p.url for p in page.context.pages]
+            log(f'URL actual: {page.url}')
+            log(f'Ventanas abiertas tras login: {len(ventanas)} -> {ventanas}')
+        except Exception:
+            pass
 
         # Cerrar un posible aviso de sesión previa.
         for sel in ('input[value="Continuar"]', 'a:has-text("Continuar")',
@@ -115,16 +121,22 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
 
         # El portal viejo abre la aplicación en OTRA ventana tras el login.
         # Buscamos la ventana que tiene el menú y nos pasamos a ella.
-        log('Buscando la ventana de la aplicación...')
+        log('Buscando la ventana de la aplicación (menú)...')
         app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle',
                                         log, timeout=30)
-        if app_page is not None and app_page is not page:
+        if app_page is None:
+            # No apareció el menú en ninguna ventana: guardar diagnóstico y avisar.
+            log('No encontré el menú en ninguna ventana. Guardo diagnóstico...')
+            guardar_diagnostico(page, 'fedpat_postlogin', log)
+            raise Exception('No apareció el menú de Federación tras el login '
+                            '(revisá la carpeta "diagnostico").')
+        if app_page is not page:
             log('La aplicación abrió en otra ventana; me cambio a ella.')
             page = app_page
-            try:
-                page.bring_to_front()
-            except Exception:
-                pass
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
 
         # Ir a Nueva Cotización por el menú Favoritos.
         log('Abriendo Favoritos...')
