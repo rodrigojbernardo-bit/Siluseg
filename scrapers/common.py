@@ -184,18 +184,55 @@ def abrir_fedpat(pw, log=None):
     return page, cerrar, False
 
 
-def esperar_verificacion(page, log=None, timeout=180):
-    """Si Cloudflare muestra la verificación, espera a que la resuelvas a mano.
+def _click_turnstile(pg, log=None):
+    """Hace clic en la casilla de verificación de Cloudflare (Turnstile).
 
-    Cloudflare puede pedir la verificación en cualquier momento. Como la
-    ventana de Chrome está a la vista, este helper detecta la pantalla de
-    'verificación de seguridad' y espera (hasta `timeout` segundos) a que
-    desaparezca, dándote tiempo a resolverla manualmente. No la 'saltea':
-    simplemente no avanza hasta que vos pasaste.
+    La casilla vive dentro de un iframe; ubicamos el iframe y clickeamos a
+    la izquierda (donde está el check), en coordenadas de pantalla. Como es
+    un Chrome real, el clic se toma como humano. Devuelve True si clickeó."""
+    selectores = [
+        'iframe[src*="challenges.cloudflare.com"]',
+        'iframe[title*="Cloudflare"]',
+        'iframe[title*="challenge"]',
+        'iframe[title*="seguridad"]',
+        'iframe[title*="human"]',
+    ]
+    for sel in selectores:
+        try:
+            el = pg.query_selector(sel)
+            if not el:
+                continue
+            try:
+                el.scroll_into_view_if_needed(timeout=2000)
+            except Exception:
+                pass
+            box = el.bounding_box()
+            if not box:
+                continue
+            x = box['x'] + 32                 # el check está a la izquierda
+            y = box['y'] + box['height'] / 2
+            pg.mouse.click(x, y)
+            if log:
+                log("Hice clic en la casilla de verificación de Cloudflare.")
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def esperar_verificacion(page, log=None, timeout=180):
+    """Si Cloudflare muestra la verificación, hace clic en la casilla y espera.
+
+    Detecta la pantalla antibot de Cloudflare, hace clic automáticamente en
+    la casilla "no soy un robot" y le da unos segundos a que procese y
+    redirija. Si el clic automático no encuentra la casilla, igual espera a
+    que la resuelvas a mano en la ventana (que está a la vista).
 
     Devuelve True si está despejado para seguir.
     """
     import time as _t
+
+    pg = getattr(page, 'page', None) or page   # si es Frame, usar su Page
 
     # Frases/elementos típicos de la pantalla antibot de Cloudflare.
     señales = [
@@ -206,6 +243,7 @@ def esperar_verificacion(page, log=None, timeout=180):
         "just a moment",
         "un servicio de seguridad",
         "no es un bot",
+        "needs to review the security",
     ]
 
     def _hay_desafio():
@@ -223,23 +261,23 @@ def esperar_verificacion(page, log=None, timeout=180):
             return True
 
     if log:
-        log("Cloudflare pidió verificación. Resolvela en la ventana de Chrome; "
-            "te espero...")
+        log("Cloudflare pidió verificación; intento pasarla...")
 
     inicio = _t.time()
     while _t.time() - inicio < timeout:
-        _t.sleep(3)
+        # Intentar clic en la casilla; si la encuentra, esperar 6s a que
+        # Cloudflare procese y deje continuar.
+        clickeo = _click_turnstile(pg, log)
+        _t.sleep(6 if clickeo else 3)
         if not _hay_desafio():
             if log:
                 log("Verificación superada. Espero unos segundos a que "
                     "termine de procesar...")
-            # Cloudflare redirige y recarga después de verificar: darle
-            # tiempo a que termine antes de tocar la página.
             _t.sleep(5)
             return True
     if log:
-        log("Pasaron los minutos de espera y la verificación sigue. "
-            "Volvé a intentar la cotización.")
+        log("La verificación sigue. Hacé clic en la casilla de la ventana "
+            "de Chrome y volvé a intentar.")
     return False
 
 
