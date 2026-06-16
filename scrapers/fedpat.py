@@ -9,7 +9,7 @@ import json
 
 from scrapers.common import (
     HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion,
-    clic_checkbox_cloudflare, encontrar_pagina_con, encontrar_ui_con,
+    pasar_turnstile, encontrar_pagina_con, encontrar_ui_con,
     guardar_diagnostico,
 )
 
@@ -80,10 +80,9 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             page.fill('input#password', PASSWORD)
             time.sleep(1)
 
-            # En el login aparece la casilla de Cloudflare: esperar a que se
-            # habilite, clickearla, y esperar a que se ponga en verde antes
-            # de hacer clic en Ingresar.
-            clic_checkbox_cloudflare(page, log, antes=5, despues=6)
+            # Cloudflare Turnstile: esperar a que se complete el token
+            # (clickeando el recuadro si aparece) ANTES de Ingresar.
+            pasar_turnstile(page, log, timeout=60)
 
             log('Clic en Ingresar...')
             page.click('input[name="Aceptar"]')

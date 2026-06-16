@@ -184,6 +184,58 @@ def abrir_fedpat(pw, log=None):
     return page, cerrar, False
 
 
+def _token_turnstile(pg):
+    """Lee el token que Cloudflare Turnstile completa al verificarse."""
+    try:
+        return pg.evaluate(
+            "() => { const e = document.querySelector('[name=\"cf-turnstile-response\"]')"
+            " || document.querySelector('#turnstileToken'); return e ? (e.value || '') : ''; }"
+        ) or ""
+    except Exception:
+        return ""
+
+
+def pasar_turnstile(page, log=None, timeout=60):
+    """Pasa el Cloudflare Turnstile del login de Federación.
+
+    Lo que importa no es el clic en sí, sino que Turnstile complete su
+    TOKEN (input cf-turnstile-response). En un navegador de confianza el
+    token se completa solo; si aparece el recuadro con la casilla, lo
+    clickeamos. Esperamos hasta `timeout` a que el token esté listo.
+
+    Devuelve True si el token quedó completo.
+    """
+    import time as _t
+    pg = getattr(page, 'page', None) or page
+
+    if log:
+        log("Esperando la verificación de Cloudflare (Turnstile)...")
+
+    inicio = _t.time()
+    aviso_manual = False
+    while _t.time() - inicio < timeout:
+        tok = _token_turnstile(pg)
+        if tok:
+            if log:
+                log("Verificación de Cloudflare completa. Espero unos segundos...")
+            _t.sleep(3)
+            return True
+        # Si el recuadro ya se dibujó, intentar clickearlo
+        _click_turnstile(pg, log)
+        # A partir de cierto tiempo, avisar para que lo resuelvas a mano
+        if not aviso_manual and _t.time() - inicio > 20:
+            aviso_manual = True
+            if log:
+                log("Si ves el recuadro de Cloudflare en la ventana de Chrome, "
+                    "marcalo a mano; sigo esperando.")
+        _t.sleep(2)
+
+    if log:
+        log("Cloudflare no se verificó a tiempo; guardo la página para revisar.")
+    _dump_login(pg, log)
+    return False
+
+
 def _click_turnstile(pg, log=None):
     """Hace clic en la casilla de verificación de Cloudflare.
 
@@ -212,11 +264,15 @@ def _click_turnstile(pg, log=None):
         pass
 
     # 2) Clic por coordenadas sobre el iframe del widget Cloudflare.
-    #    Recorremos TODOS los iframes y elegimos el de Cloudflare o uno chico.
+    #    Priorizamos el iframe dentro de div.cf-turnstile.
     try:
-        iframes = pg.query_selector_all('iframe')
+        iframes = pg.query_selector_all('div.cf-turnstile iframe') or []
     except Exception:
         iframes = []
+    try:
+        iframes = iframes + (pg.query_selector_all('iframe') or [])
+    except Exception:
+        pass
     for el in iframes:
         try:
             src = (el.get_attribute('src') or '')
