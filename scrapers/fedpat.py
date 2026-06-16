@@ -9,7 +9,8 @@ import json
 
 from scrapers.common import (
     HEADLESS, mensaje_error, abrir_fedpat, esperar_verificacion,
-    encontrar_pagina_con, encontrar_ui_con, guardar_diagnostico,
+    clic_checkbox_cloudflare, encontrar_pagina_con, encontrar_ui_con,
+    guardar_diagnostico,
 )
 
 USUARIO   = "30658"
@@ -71,10 +72,6 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             ya_logueado = True
 
         if not ya_logueado:
-            # Confirmar que el formulario quedó estable (que Cloudflare no
-            # esté todavía recargando la página por atrás).
-            time.sleep(2)
-            esperar_verificacion(page, log)
             page.wait_for_selector('input#usuario', timeout=12000)
 
             log('Ingresando credenciales...')
@@ -82,6 +79,13 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             time.sleep(1)
             page.fill('input#password', PASSWORD)
             time.sleep(1)
+
+            # En el login aparece la casilla de Cloudflare: esperar a que se
+            # habilite, clickearla, y esperar a que se ponga en verde antes
+            # de hacer clic en Ingresar.
+            clic_checkbox_cloudflare(page, log, antes=5, despues=6)
+
+            log('Clic en Ingresar...')
             page.click('input[name="Aceptar"]')
             try:
                 page.wait_for_load_state("networkidle", timeout=15000)

@@ -243,6 +243,40 @@ def _click_turnstile(pg, log=None):
     return False
 
 
+def clic_checkbox_cloudflare(page, log=None, antes=5, despues=6):
+    """Secuencia para la casilla de Cloudflare que aparece en el login:
+
+    1) espera `antes` segundos a que la casilla se habilite,
+    2) hace clic en el <input type="checkbox">,
+    3) espera `despues` segundos a que se ponga en verde (verificada).
+
+    Se usa SIEMPRE en la página de login (la casilla puede estar sin el
+    cartel de 'verificación de seguridad'). Devuelve True si clickeó.
+    """
+    import time as _t
+    pg = getattr(page, 'page', None) or page
+    if log:
+        log('Esperando la casilla de verificación...')
+    _t.sleep(antes)
+    # Reintentar el clic por si la casilla tarda en habilitarse
+    clickeo = False
+    for _ in range(3):
+        if _click_turnstile(pg, log):
+            clickeo = True
+            break
+        _t.sleep(2)
+    if clickeo:
+        if log:
+            log(f'Casilla marcada; espero {despues}s a que se verifique...')
+        _t.sleep(despues)
+    else:
+        if log:
+            log('No encontré la casilla automáticamente; si aparece, '
+                'marcala en la ventana de Chrome.')
+        _t.sleep(despues)
+    return clickeo
+
+
 def esperar_verificacion(page, log=None, timeout=180):
     """Si Cloudflare muestra la verificación, hace clic en la casilla y espera.
 
