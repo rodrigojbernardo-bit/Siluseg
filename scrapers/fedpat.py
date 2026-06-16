@@ -113,36 +113,21 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             except Exception:
                 pass
 
-        # Ir a Nueva Cotización POR EL MENÚ. El acceso directo por URL no
-        # sirve: el portal lo rebota a la página de inicio (homeWin32.do).
-        log('Abriendo Nueva Cotización Automotor (por el menú)...')
-        if 'homeWin32' not in page.url:
-            page.goto(URL_LOGIN, wait_until='domcontentloaded', timeout=30000)
-            esperar_verificacion(page, log)
-            time.sleep(3)
+        # Ir a Nueva Cotización por el menú Favoritos (como estaba armado),
+        # ya logueados y sobre la misma página.
+        log('Abriendo Favoritos...')
+        page.wait_for_selector('a.MsM_dropdownToggle', timeout=20000)
+        page.click('a.MsM_dropdownToggle')
+        time.sleep(1)
 
-        # El menú puede estar en otra ventana o dentro de un marco.
-        menu = encontrar_ui_con(page.context, 'a.MsM_dropdownToggle', log, timeout=20)
-        if menu is None:
-            guardar_diagnostico(page, 'fedpat_sinmenu', log)
-            raise Exception('No encontré el menú principal de Federación '
-                            '(guardé diagnóstico en el Escritorio).')
-        menu.click('a.MsM_dropdownToggle')
-        time.sleep(1.5)
-        menu.click('a[href="/self/newCotizacion.do"]')
-        time.sleep(3)
-        esperar_verificacion(page, log)
-
-        # Buscar el formulario de cotización en cualquier ventana o marco.
-        form_ui = encontrar_ui_con(page.context, 'input#documentoAsegurado', log, timeout=30)
-        if form_ui is None:
-            guardar_diagnostico(page, 'fedpat_nuevacotizacion', log)
-            raise Exception('No apareció el formulario de Nueva Cotización '
-                            '(guardé diagnóstico en el Escritorio).')
-        # Page y Frame comparten fill/click/evaluate/etc.: seguimos sobre
-        # donde realmente está el formulario.
-        page = form_ui
-        log('Formulario de cotización encontrado.')
+        log('Clickeando Nueva Cotización Automotor...')
+        page.wait_for_selector('a[href="/self/newCotizacion.do"]', timeout=20000)
+        page.click('a[href="/self/newCotizacion.do"]')
+        try:
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+        page.wait_for_selector('input#documentoAsegurado', timeout=25000)
         time.sleep(2)
 
         log(f'Ingresando DNI {dni}...')
