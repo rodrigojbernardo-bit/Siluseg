@@ -216,6 +216,8 @@ def pasar_turnstile(page, log=None, timeout=60):
     if log:
         log("Esperando la verificación de Cloudflare (Turnstile)...")
 
+    _t.sleep(6)   # darle tiempo a que el recuadro se dibuje, como pediste
+
     inicio = _t.time()
     aviso_manual = False
     while _t.time() - inicio < timeout:
@@ -242,40 +244,51 @@ def pasar_turnstile(page, log=None, timeout=60):
 
 
 def _click_turnstile(pg, log=None):
-    """Hace clic en la casilla de verificación de Cloudflare.
+    """Hace clic en la casilla (<input type=checkbox>) de Cloudflare.
 
-    Prueba varias estrategias (checkbox real en cualquier marco, clic por
-    coordenadas sobre el iframe del widget). Devuelve True si clickeó algo.
+    Recorre TODOS los marcos (incluido el de Cloudflare) y clickea el
+    checkbox como elemento; si no, clickea dentro del iframe del widget por
+    posición. Devuelve True si clickeó algo.
     """
-    # 1) Checkbox real, en la página o dentro de cualquier marco
-    try:
-        for fr in pg.frames:
-            for sel in ('input[type="checkbox"]', 'input#cf-chl-widget',
-                        'label.cb-lb', '.mark', 'span.cb-i'):
-                try:
-                    cb = fr.query_selector(sel)
-                    if cb:
-                        try:
-                            cb.scroll_into_view_if_needed(timeout=1500)
-                        except Exception:
-                            pass
-                        cb.click(timeout=3000, force=True)
-                        if log:
-                            log(f"Clic en la casilla de Cloudflare ({sel}).")
-                        return True
-                except Exception:
-                    continue
-    except Exception:
-        pass
-
-    # 2) Clic sobre el iframe del widget Cloudflare (Turnstile).
-    #    Priorizamos el iframe dentro de div.cf-turnstile y clickeamos en su
-    #    posición RELATIVA (x≈30, y≈33), donde está el check. Playwright
-    #    rutea el clic dentro del iframe.
     try:
         pg.bring_to_front()
     except Exception:
         pass
+
+    # 1) Buscar el checkbox como elemento, marco por marco. Priorizamos los
+    #    marcos de Cloudflare.
+    try:
+        marcos = list(pg.frames)
+    except Exception:
+        marcos = []
+    def _es_cf(fr):
+        try:
+            u = (fr.url or '').lower()
+        except Exception:
+            u = ''
+        return ('challenges.cloudflare' in u or 'turnstile' in u or 'cloudflare' in u)
+    marcos.sort(key=lambda f: 0 if _es_cf(f) else 1)
+
+    for fr in marcos:
+        for sel in ('input[type="checkbox"]', 'label', 'body'):
+            try:
+                el = fr.query_selector(sel)
+                if not el:
+                    continue
+                if sel == 'body':
+                    # solo clickear body si el marco es de Cloudflare (el check)
+                    if not _es_cf(fr):
+                        continue
+                    el.click(position={'x': 30, 'y': 30}, force=True, timeout=2500)
+                else:
+                    el.click(force=True, timeout=2500)
+                if log:
+                    log(f"Clic en la casilla de Cloudflare ({sel}).")
+                return True
+            except Exception:
+                continue
+
+    # 2) Clic dentro del iframe del widget por posición relativa
     listas = []
     for sel in ('div.cf-turnstile iframe',
                 'iframe[src*="challenges.cloudflare.com"]',
@@ -287,7 +300,6 @@ def _click_turnstile(pg, log=None):
             listas += (pg.query_selector_all(sel) or [])
         except Exception:
             pass
-    # como respaldo, cualquier iframe chico
     try:
         for el in (pg.query_selector_all('iframe') or []):
             b = el.bounding_box()
@@ -305,16 +317,14 @@ def _click_turnstile(pg, log=None):
             box = el.bounding_box()
             if not box:
                 continue
-            # Posición del check dentro del widget (esquina izquierda).
             px = min(30, box['width'] / 2)
             py = box['height'] / 2
             try:
                 el.click(position={'x': px, 'y': py}, force=True, timeout=3000)
             except Exception:
-                # Respaldo: clic por coordenadas absolutas de pantalla
                 pg.mouse.click(box['x'] + px, box['y'] + py)
             if log:
-                log("Clic en la casilla de Cloudflare (Turnstile).")
+                log("Clic en la casilla de Cloudflare (iframe).")
             return True
         except Exception:
             continue
