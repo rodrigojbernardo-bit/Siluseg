@@ -187,60 +187,99 @@ def abrir_fedpat(pw, log=None):
 def _click_turnstile(pg, log=None):
     """Hace clic en la casilla de verificación de Cloudflare.
 
-    1) Busca un <input type="checkbox"> real en la página y en TODOS los
-       marcos (el de Cloudflare incluido) y lo clickea directo.
-    2) Si no, ubica el iframe del widget y clickea por coordenadas (a la
-       izquierda, donde está el check).
-    Como es un Chrome real, el clic se toma como humano. Devuelve True si
-    clickeó algo."""
+    Prueba varias estrategias (checkbox real en cualquier marco, clic por
+    coordenadas sobre el iframe del widget). Devuelve True si clickeó algo.
+    """
     # 1) Checkbox real, en la página o dentro de cualquier marco
     try:
         for fr in pg.frames:
-            try:
-                cb = fr.query_selector('input[type="checkbox"]')
-                if cb:
-                    try:
-                        cb.scroll_into_view_if_needed(timeout=2000)
-                    except Exception:
-                        pass
-                    cb.click(timeout=3000)
-                    if log:
-                        log("Hice clic en la casilla de verificación de Cloudflare.")
-                    return True
-            except Exception:
-                continue
+            for sel in ('input[type="checkbox"]', 'input#cf-chl-widget',
+                        'label.cb-lb', '.mark', 'span.cb-i'):
+                try:
+                    cb = fr.query_selector(sel)
+                    if cb:
+                        try:
+                            cb.scroll_into_view_if_needed(timeout=1500)
+                        except Exception:
+                            pass
+                        cb.click(timeout=3000, force=True)
+                        if log:
+                            log(f"Clic en la casilla de Cloudflare ({sel}).")
+                        return True
+                except Exception:
+                    continue
     except Exception:
         pass
 
-    # 2) Respaldo: clic por coordenadas sobre el iframe del widget
-    selectores = [
-        'iframe[src*="challenges.cloudflare.com"]',
-        'iframe[title*="Cloudflare"]',
-        'iframe[title*="challenge"]',
-        'iframe[title*="seguridad"]',
-        'iframe[title*="human"]',
-    ]
-    for sel in selectores:
+    # 2) Clic por coordenadas sobre el iframe del widget Cloudflare.
+    #    Recorremos TODOS los iframes y elegimos el de Cloudflare o uno chico.
+    try:
+        iframes = pg.query_selector_all('iframe')
+    except Exception:
+        iframes = []
+    for el in iframes:
         try:
-            el = pg.query_selector(sel)
-            if not el:
-                continue
-            try:
-                el.scroll_into_view_if_needed(timeout=2000)
-            except Exception:
-                pass
+            src = (el.get_attribute('src') or '')
+            title = (el.get_attribute('title') or '')
             box = el.bounding_box()
             if not box:
                 continue
+            es_cf = ('cloudflare' in src.lower() or 'challenge' in src.lower()
+                     or 'turnstile' in src.lower() or 'cloudflare' in title.lower()
+                     or 'challenge' in title.lower() or 'human' in title.lower())
+            es_chico = box['width'] < 450 and box['height'] < 120
+            if not (es_cf or es_chico):
+                continue
+            try:
+                el.scroll_into_view_if_needed(timeout=1500)
+                box = el.bounding_box() or box
+            except Exception:
+                pass
             x = box['x'] + 32                 # el check está a la izquierda
             y = box['y'] + box['height'] / 2
             pg.mouse.click(x, y)
             if log:
-                log("Hice clic en la verificación de Cloudflare (por posición).")
+                log("Clic en la verificación de Cloudflare (por posición).")
             return True
         except Exception:
             continue
     return False
+
+
+def _dump_login(pg, log=None):
+    """Guarda en el Escritorio la página de login (foto + HTML + lista de
+    marcos) para poder ver cómo es la casilla de Cloudflare."""
+    try:
+        from pathlib import Path
+        d = Path.home() / 'Desktop'
+        if not d.exists():
+            d = Path.home()
+        base = d / 'fedpat_login'
+        try:
+            pg.screenshot(path=str(base.with_suffix('.png')), full_page=True)
+        except Exception:
+            pass
+        try:
+            partes = [f'URL: {pg.url}', '', 'MARCOS (frames):']
+            for fr in pg.frames:
+                partes.append(f'  - {fr.url}')
+                try:
+                    n_cb = len(fr.query_selector_all('input[type="checkbox"]'))
+                    n_if = len(fr.query_selector_all('iframe'))
+                    partes.append(f'      checkboxes={n_cb}  iframes={n_if}')
+                except Exception:
+                    pass
+            base.with_suffix('.txt').write_text('\n'.join(partes), encoding='utf-8')
+        except Exception:
+            pass
+        try:
+            base.with_suffix('.html').write_text(pg.content(), encoding='utf-8')
+        except Exception:
+            pass
+        if log:
+            log('Guardé la página de login en el Escritorio (fedpat_login.*).')
+    except Exception:
+        pass
 
 
 def clic_checkbox_cloudflare(page, log=None, antes=5, despues=6):
@@ -271,8 +310,9 @@ def clic_checkbox_cloudflare(page, log=None, antes=5, despues=6):
         _t.sleep(despues)
     else:
         if log:
-            log('No encontré la casilla automáticamente; si aparece, '
-                'marcala en la ventana de Chrome.')
+            log('No encontré la casilla automáticamente. Guardo la página '
+                'para revisar y, si aparece, marcala en la ventana de Chrome.')
+        _dump_login(pg, log)        # capturar la estructura real
         _t.sleep(despues)
     return clickeo
 
