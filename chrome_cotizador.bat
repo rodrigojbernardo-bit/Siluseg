@@ -10,8 +10,11 @@ cd /d "%~dp0"
 :: y la cierra al terminar.
 
 :: --- Configuracion (se puede cambiar con variables de entorno) ---
-if not defined COTI_CHROME_PROFILE  set "COTI_CHROME_PROFILE=Siluseg BOOT"
-if not defined COTI_CHROME_USERDATA set "COTI_CHROME_USERDATA=%LocalAppData%\Google\Chrome\User Data"
+:: COTI_CHROME_PROFILE_DIR es la CARPETA del perfil. Para "Siluseg BOOT"
+:: es "Profile 5". Si la cambias, basta con editar esta linea.
+if not defined COTI_CHROME_PROFILE_DIR set "COTI_CHROME_PROFILE_DIR=Profile 5"
+if not defined COTI_CHROME_PROFILE      set "COTI_CHROME_PROFILE=Siluseg BOOT"
+if not defined COTI_CHROME_USERDATA     set "COTI_CHROME_USERDATA=%LocalAppData%\Google\Chrome\User Data"
 set "PUERTO=9222"
 
 :: Ubicar chrome.exe
@@ -26,9 +29,12 @@ if not exist "%CHROME%" (
   exit /b 1
 )
 
-:: Traducir "Siluseg BOOT" a su carpeta interna (Profile N)
-set "PROFILEDIR=%COTI_CHROME_PROFILE%"
-for /f "usebackq delims=" %%i in (`python "%~dp0resolver_perfil.py"`) do set "PROFILEDIR=%%i"
+:: Carpeta del perfil: usamos la fijada arriba (Profile 5). Como respaldo,
+:: si esa carpeta no existe, intentamos resolverla por el nombre visible.
+set "PROFILEDIR=%COTI_CHROME_PROFILE_DIR%"
+if not exist "%COTI_CHROME_USERDATA%\%PROFILEDIR%" (
+  for /f "usebackq delims=" %%i in (`python "%~dp0resolver_perfil.py"`) do set "PROFILEDIR=%%i"
+)
 
 echo Perfil: %COTI_CHROME_PROFILE%  ^(carpeta: %PROFILEDIR%^)
 echo Abriendo Chrome del cotizador...
