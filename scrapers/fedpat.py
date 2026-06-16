@@ -43,7 +43,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
     try:
         log('Iniciando navegador...')
         pw = sync_playwright().start()
-        page, cerrar_nav, chrome_real = abrir_fedpat(pw)
+        page, cerrar_nav, chrome_real = abrir_fedpat(pw, log)
         if chrome_real:
             log('Conectado a tu Chrome (pasa la verificación de seguridad).')
         else:

@@ -1,6 +1,9 @@
 """Configuración y helpers compartidos por los scrapers."""
 
 import os
+import socket
+import subprocess
+import time
 from pathlib import Path
 
 # Con COTI_HEADLESS=1 los navegadores corren ocultos (sin ventanas).
@@ -62,36 +65,114 @@ def lanzar_navegador(pw, perfil, headless=None):
     return context, page
 
 
-def abrir_fedpat(pw):
-    """Abre Federación reutilizando TU Chrome (el que ya pasa Cloudflare).
+# Carpeta de datos propia del Chrome del cotizador (independiente del
+# Chrome personal del usuario). chrome_cotizador.bat la siembra una vez
+# copiando el perfil de confianza; si no existe, se crea limpia.
+_BOOT_DIR = Path(__file__).resolve().parent.parent / ".chrome_boot"
 
-    Si hay un Chrome escuchando en el puerto de depuración (lo abre el
-    archivo chrome_cotizador.bat), se conecta a ÉL y le abre una PESTAÑA
-    NUEVA solo para Federación, sin tocar las pestañas en las que estás
-    trabajando. Al terminar, cierra únicamente esa pestaña; tu Chrome
-    sigue abierto.
 
-    Si no hay ninguno, cae al navegador propio con perfil persistente.
+def _puerto_abierto(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.6)
+    try:
+        s.connect(("127.0.0.1", int(port)))
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
+def _buscar_chrome():
+    for var, sub in (
+        ("PROGRAMFILES", r"Google\Chrome\Application\chrome.exe"),
+        ("PROGRAMFILES(X86)", r"Google\Chrome\Application\chrome.exe"),
+        ("LOCALAPPDATA", r"Google\Chrome\Application\chrome.exe"),
+    ):
+        base = os.environ.get(var)
+        if base:
+            p = Path(base) / sub
+            if p.exists():
+                return str(p)
+    # Linux/otros (por si se prueba fuera de Windows)
+    for cand in ("/usr/bin/google-chrome", "/usr/bin/chromium-browser",
+                 "/usr/bin/chromium"):
+        if Path(cand).exists():
+            return cand
+    return None
+
+
+def _lanzar_chrome_real(port):
+    """Lanza un Chrome REAL como proceso aparte (no por Playwright) con el
+    puerto de depuración. Al ser un Chrome normal, pasa Cloudflare como el
+    navegador del usuario. Devuelve True si quedó el puerto escuchando."""
+    exe = _buscar_chrome()
+    if not exe:
+        return False
+    _BOOT_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.Popen(
+            [
+                exe,
+                f"--remote-debugging-port={port}",
+                f"--user-data-dir={_BOOT_DIR}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "https://online.fedpat.com.ar/self/homeWin32.do",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return False
+    # Esperar a que abra el puerto (hasta ~25s)
+    for _ in range(50):
+        if _puerto_abierto(port):
+            return True
+        time.sleep(0.5)
+    return _puerto_abierto(port)
+
+
+def abrir_fedpat(pw, log=None):
+    """Abre Federación en un Chrome REAL con carpeta propia, vía CDP.
+
+    1. Si ya hay un Chrome con el puerto de depuración abierto, se conecta.
+    2. Si no, lanza un Chrome real (proceso aparte, no Playwright) con su
+       carpeta de datos propia .chrome_boot y se conecta a él. Al ser un
+       Chrome normal, pasa la verificación de Cloudflare como tu navegador.
+    3. Solo si todo falla, cae al navegador interno de Playwright.
+
     Devuelve (page, cerrar, chrome_real).
     """
     port = os.environ.get("COTI_CHROME_PORT", "9222")
-    try:
-        browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
-        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
-        # Pestaña nueva, dedicada a Federación (no robamos la pestaña activa).
-        page = ctx.new_page()
 
-        def cerrar():
-            # Cerramos SOLO la pestaña de Federación; tu Chrome sigue intacto.
-            try:
-                page.close()
-            except Exception:
-                pass
+    if not _puerto_abierto(port):
+        if log:
+            log("Abriendo Chrome del cotizador (carpeta propia)...")
+        _lanzar_chrome_real(port)
 
-        return page, cerrar, True  # conectado a tu Chrome real
-    except Exception:
-        pass
+    if _puerto_abierto(port):
+        try:
+            browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
+            ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+            page = ctx.new_page()
 
+            def cerrar():
+                try:
+                    page.close()
+                except Exception:
+                    pass
+
+            return page, cerrar, True
+        except Exception:
+            pass
+
+    if log:
+        log("No pude usar el Chrome real; uso el navegador interno "
+            "(puede pedir verificación de Cloudflare).")
     context, page = lanzar_navegador(pw, perfil='fedpat')
 
     def cerrar():
