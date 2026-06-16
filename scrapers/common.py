@@ -185,11 +185,34 @@ def abrir_fedpat(pw, log=None):
 
 
 def _click_turnstile(pg, log=None):
-    """Hace clic en la casilla de verificación de Cloudflare (Turnstile).
+    """Hace clic en la casilla de verificación de Cloudflare.
 
-    La casilla vive dentro de un iframe; ubicamos el iframe y clickeamos a
-    la izquierda (donde está el check), en coordenadas de pantalla. Como es
-    un Chrome real, el clic se toma como humano. Devuelve True si clickeó."""
+    1) Busca un <input type="checkbox"> real en la página y en TODOS los
+       marcos (el de Cloudflare incluido) y lo clickea directo.
+    2) Si no, ubica el iframe del widget y clickea por coordenadas (a la
+       izquierda, donde está el check).
+    Como es un Chrome real, el clic se toma como humano. Devuelve True si
+    clickeó algo."""
+    # 1) Checkbox real, en la página o dentro de cualquier marco
+    try:
+        for fr in pg.frames:
+            try:
+                cb = fr.query_selector('input[type="checkbox"]')
+                if cb:
+                    try:
+                        cb.scroll_into_view_if_needed(timeout=2000)
+                    except Exception:
+                        pass
+                    cb.click(timeout=3000)
+                    if log:
+                        log("Hice clic en la casilla de verificación de Cloudflare.")
+                    return True
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # 2) Respaldo: clic por coordenadas sobre el iframe del widget
     selectores = [
         'iframe[src*="challenges.cloudflare.com"]',
         'iframe[title*="Cloudflare"]',
@@ -213,7 +236,7 @@ def _click_turnstile(pg, log=None):
             y = box['y'] + box['height'] / 2
             pg.mouse.click(x, y)
             if log:
-                log("Hice clic en la casilla de verificación de Cloudflare.")
+                log("Hice clic en la verificación de Cloudflare (por posición).")
             return True
         except Exception:
             continue
