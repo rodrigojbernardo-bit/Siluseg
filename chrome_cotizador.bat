@@ -1,19 +1,20 @@
 @echo off
-title Chrome Siluseg (cotizador + uso diario)
+title Chrome Cotizador Siluseg (perfil Siluseg BOOT)
 cd /d "%~dp0"
 
-:: Abre un Chrome REAL que el cotizador puede usar para Federacion.
-:: Este Chrome es para USO DIARIO: dejalo abierto y trabaja en el
-:: normalmente (carga de datos, portales, lo que necesites).
-:: Inicia sesion con tu cuenta de Google una sola vez y vas a tener
-:: tus contrasenias y favoritos de siempre.
+:: Abre tu Chrome REAL con el perfil "Siluseg BOOT" (que ya pasa la
+:: verificacion de Cloudflare de Federacion). Vos seguis usando tu
+:: perfil normal en otra ventana; el cotizador usa este.
 ::
 :: El cotizador le abre una PESTANIA nueva cuando cotiza Federacion
-:: y la cierra al terminar: no toca tus pestanias.
+:: y la cierra al terminar.
 
-set "PERFIL=%~dp0.chrome_fedpat"
+:: --- Configuracion (se puede cambiar con variables de entorno) ---
+if not defined COTI_CHROME_PROFILE  set "COTI_CHROME_PROFILE=Siluseg BOOT"
+if not defined COTI_CHROME_USERDATA set "COTI_CHROME_USERDATA=%LocalAppData%\Google\Chrome\User Data"
 set "PUERTO=9222"
 
+:: Ubicar chrome.exe
 set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
@@ -25,6 +26,12 @@ if not exist "%CHROME%" (
   exit /b 1
 )
 
-:: /min abre la ventana minimizada para que no te moleste; sigue
-:: disponible en la barra de tareas por si Cloudflare pide verificacion.
-start "" /min "%CHROME%" --remote-debugging-port=%PUERTO% --user-data-dir="%PERFIL%" --window-position=2000,2000 "https://online.fedpat.com.ar/self/homeWin32.do"
+:: Traducir "Siluseg BOOT" a su carpeta interna (Profile N)
+set "PROFILEDIR=%COTI_CHROME_PROFILE%"
+for /f "usebackq delims=" %%i in (`python "%~dp0resolver_perfil.py"`) do set "PROFILEDIR=%%i"
+
+echo Perfil: %COTI_CHROME_PROFILE%  ^(carpeta: %PROFILEDIR%^)
+echo Abriendo Chrome del cotizador...
+
+:: /min: minimizado para no molestar; sigue disponible en la barra de tareas
+start "" /min "%CHROME%" --remote-debugging-port=%PUERTO% --user-data-dir="%COTI_CHROME_USERDATA%" --profile-directory="%PROFILEDIR%" "https://online.fedpat.com.ar/self/homeWin32.do"
