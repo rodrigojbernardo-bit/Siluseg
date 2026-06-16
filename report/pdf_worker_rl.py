@@ -32,7 +32,7 @@ def main():
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import (
         SimpleDocTemplate, Table, TableStyle,
-        Paragraph, Spacer, Image as RLImage,
+        Paragraph, Spacer, Image as RLImage, Flowable,
     )
 
     # ── Paleta ───────────────────────────────────────────────────────────────
@@ -238,8 +238,8 @@ def main():
     ct.setStyle(TableStyle(ts))
     story.append(ct)
 
-    # ── Aclaración importante (leyenda con barrita azul a la izquierda) ──────
-    story.append(Spacer(1, 1.4 * cm))
+    # ── Leyenda (aclaración) + banner, anclados casi al pie de la página ─────
+    RED = colors.HexColor('#bd222e')   # rojo de la paleta del logo
 
     leyenda_txt = (
         '<font name="Helvetica-Bold" size="8" color="#888888">Aclaración importante:</font><br/>'
@@ -257,8 +257,7 @@ def main():
         colWidths=[0.07 * cm, usable - 0.07 * cm],
     )
     leyenda.setStyle(TableStyle([
-        # La barrita azul ocupa exactamente la altura del texto
-        ('BACKGROUND',    (0, 0), (0, 0), BLUE),
+        ('BACKGROUND',    (0, 0), (0, 0), BLUE),   # barrita azul a la altura del texto
         ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING',   (0, 0), (0, 0), 0),
         ('RIGHTPADDING',  (0, 0), (0, 0), 0),
@@ -267,69 +266,105 @@ def main():
         ('TOPPADDING',    (0, 0), (-1, -1), 0),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
     ]))
-    story.append(leyenda)
-
-    # ── Banner promocional (foto + mensaje + CTA WhatsApp) ───────────────────
-    story.append(Spacer(1, 0.6 * cm))
-
-    BORDO    = colors.HexColor('#6e1d36')   # bordó de la paleta del logo
-    banner_h = 2.5 * cm
-    img_w    = 4.6 * cm
-    cta_w    = 5.6 * cm
-    mid_w    = usable - img_w - cta_w
 
     # Foto de la casa: Casa_Banner.jpg/png en la carpeta principal de la app
     banner_dir = Path(__file__).resolve().parent.parent
-    casa_img = None
+    foto_banner = None
     for nombre in ('Casa_Banner.jpg', 'Casa_Banner.png', 'Casa_Banner.jpeg'):
         p = banner_dir / nombre
         if p.exists():
-            try:
-                casa_img = RLImage(str(p), width=img_w, height=banner_h)
-                break
-            except Exception:
-                casa_img = None
+            foto_banner = str(p)
+            break
 
-    msj_mid = Paragraph(
-        '<font name="Helvetica-Bold" size="12" color="#ffffff">Asegurá tu Auto</font><br/>'
-        '<font name="Helvetica-Bold" size="9.5" color="#f3b3c4">y Conseguí un 10% OFF<br/>'
-        'en el Seguro de tu Hogar</font>',
-        ps('bm', alignment=TA_CENTER, leading=14)
-    )
-    msj_cta = Paragraph(
-        '<font name="Helvetica-Bold" size="10" color="#ffffff">Cotizá todos tus seguros</font><br/>'
-        '<font name="Helvetica" size="8.5" color="#ffffff">Escribinos al WhatsApp</font><br/>'
-        '<font name="Helvetica-Bold" size="10" color="#ffffff">+54 9 11 3450-1751</font>',
-        ps('bc', alignment=TA_CENTER, leading=13)
-    )
+    banner_h = 2.7 * cm
 
-    if casa_img is not None:
-        banner_cells = [casa_img, msj_mid, msj_cta]
-        banner_cols  = [img_w, mid_w, cta_w]
-    else:
-        banner_cells = [msj_mid, msj_cta]
-        banner_cols  = [usable - cta_w, cta_w]
+    class Banner(Flowable):
+        """Banner promocional: rectángulo azul redondeado, círculos rojos
+        decorativos, foto a la izquierda y textos en blanco."""
+        def __init__(self, width, height, foto):
+            self.width = width
+            self.height = height
+            self.foto = foto
 
-    banner = Table([banner_cells], colWidths=banner_cols, rowHeights=[banner_h])
-    bstyle = [
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND',    (0, 0), (-1, -1), BLUE),
-        # Última columna (CTA WhatsApp) en bordó
-        ('BACKGROUND',    (-1, 0), (-1, 0), BORDO),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        ('TOPPADDING',    (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]
-    if casa_img is not None:
-        # La foto pegada al borde, sin padding
-        bstyle += [
-            ('LEFTPADDING',   (0, 0), (0, 0), 0),
-            ('RIGHTPADDING',  (0, 0), (0, 0), 0),
-            ('TOPPADDING',    (0, 0), (0, 0), 0),
-            ('BOTTOMPADDING', (0, 0), (0, 0), 0),
-        ]
-    banner.setStyle(TableStyle(bstyle))
+        def wrap(self, aw, ah):
+            return (self.width, self.height)
+
+        def _lineas(self, c, cx, lineas):
+            total = sum(sz * 1.45 for _, _, sz in lineas)
+            y = (self.height + total) / 2 - lineas[0][2]
+            for txt, fnt, sz in lineas:
+                c.setFont(fnt, sz)
+                c.setFillColor(colors.white)
+                c.drawCentredString(cx, y, txt)
+                y -= sz * 1.55
+
+        def draw(self):
+            c = self.canv
+            w, h = self.width, self.height
+            rad = 0.4 * cm
+            img_w = 4.8 * cm if self.foto else 0
+            cta_w = 5.8 * cm
+            mid_x = img_w + (w - img_w - cta_w) / 2
+            cta_x = w - cta_w / 2
+
+            # Fondo azul redondeado
+            c.saveState()
+            c.setFillColor(BLUE)
+            c.roundRect(0, 0, w, h, rad, fill=1, stroke=0)
+
+            # Recortar todo a las esquinas redondeadas
+            path = c.beginPath()
+            path.roundRect(0, 0, w, h, rad)
+            c.clipPath(path, stroke=0, fill=0)
+
+            # Círculos rojos decorativos
+            c.setFillColor(RED)
+            c.circle(w * 0.985, h * 0.30, h * 0.62, fill=1, stroke=0)
+            c.circle(w * 0.50,  h * 1.02, h * 0.30, fill=1, stroke=0)
+            c.circle(w * 0.70,  -h * 0.10, h * 0.26, fill=1, stroke=0)
+
+            # Foto a la izquierda (dentro del recorte → esquinas redondeadas)
+            if self.foto:
+                try:
+                    from reportlab.lib.utils import ImageReader
+                    c.drawImage(ImageReader(self.foto), 0, 0, img_w, h,
+                                preserveAspectRatio=False, mask='auto')
+                except Exception:
+                    pass
+            c.restoreState()
+
+            # Textos
+            self._lineas(c, mid_x, [
+                ('Asegurá tu Auto', 'Helvetica-Bold', 13),
+                ('y Conseguí un 10% OFF', 'Helvetica-Bold', 10),
+                ('en el Seguro de tu Hogar', 'Helvetica-Bold', 10),
+            ])
+            self._lineas(c, cta_x, [
+                ('Cotizá todos tus seguros', 'Helvetica-Bold', 10.5),
+                ('Escribinos al WhatsApp', 'Helvetica', 8.5),
+                ('+54 9 11 3450-1751', 'Helvetica-Bold', 11),
+            ])
+
+    banner = Banner(usable, banner_h, foto_banner)
+
+    # Empujar leyenda + banner hacia el fondo de la página
+    class PushDown(Flowable):
+        """Consume el espacio libre para que lo que sigue quede abajo."""
+        def __init__(self, reservar):
+            self.reservar = reservar
+        def wrap(self, aw, ah):
+            self.width = aw
+            self.height = max(0, ah - self.reservar)
+            return (aw, self.height)
+        def draw(self):
+            pass
+
+    gap = 0.5 * cm
+    ley_h = leyenda.wrap(usable, 10000)[1]
+    reserva = ley_h + gap + banner_h
+    story.append(PushDown(reserva))
+    story.append(leyenda)
+    story.append(Spacer(1, gap))
     story.append(banner)
 
     doc.build(story)
