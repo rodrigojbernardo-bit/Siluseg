@@ -113,8 +113,20 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             except Exception:
                 pass
 
-        # Ir a Nueva Cotización por el menú Favoritos (como estaba armado),
-        # ya logueados y sobre la misma página.
+        # El portal viejo abre la aplicación en OTRA ventana tras el login.
+        # Buscamos la ventana que tiene el menú y nos pasamos a ella.
+        log('Buscando la ventana de la aplicación...')
+        app_page = encontrar_pagina_con(page.context, 'a.MsM_dropdownToggle',
+                                        log, timeout=30)
+        if app_page is not None and app_page is not page:
+            log('La aplicación abrió en otra ventana; me cambio a ella.')
+            page = app_page
+            try:
+                page.bring_to_front()
+            except Exception:
+                pass
+
+        # Ir a Nueva Cotización por el menú Favoritos.
         log('Abriendo Favoritos...')
         page.wait_for_selector('a.MsM_dropdownToggle', timeout=20000)
         page.click('a.MsM_dropdownToggle')
