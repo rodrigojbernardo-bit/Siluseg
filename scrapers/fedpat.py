@@ -30,6 +30,59 @@ def _parse_precio(texto):
         return None
 
 
+class _ErrorServidorFedpat(Exception):
+    """Error temporal del servidor de Federación (Oracle), no del cotizador."""
+
+
+def _error_oracle(page):
+    """Devuelve el texto del error si la página muestra un error de Oracle
+    de Federación (ORA-xxxx / paquete invalidado), o '' si no hay."""
+    try:
+        t = page.inner_text('body', timeout=3000) or ''
+    except Exception:
+        return ''
+    for marca in ('ORA-04068', 'ORA-04061', 'ORA-04065', 'ORA-06508',
+                  'ORA-06512', 'PCK_COTIZACION',
+                  'could not find program unit', 'ORA-'):
+        if marca in t:
+            return t.strip()[:300]
+    return ''
+
+
+def _cotizar_fp(page, log, intentos=3):
+    """Hace clic en Cotizar y reintenta si Federación devuelve el error de
+    Oracle (la 1ra llamada tras recompilar el paquete falla; la 2da anda).
+    Si el error persiste tras los reintentos, levanta _ErrorServidorFedpat."""
+    for i in range(intentos):
+        try:
+            page.wait_for_selector('input#cotizar_', timeout=10000)
+        except Exception:
+            pass
+        page.click('input#cotizar_')
+        try:
+            page.wait_for_load_state("networkidle", timeout=30000)
+        except Exception:
+            pass
+        time.sleep(3)
+        err = _error_oracle(page)
+        if not err:
+            return  # cotizó OK
+        if log:
+            log(f'Federación devolvió un error temporal del servidor (Oracle). '
+                f'Reintento {i + 1}/{intentos}...')
+        time.sleep(6)
+        try:
+            page.go_back()
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+        time.sleep(2)
+    raise _ErrorServidorFedpat(
+        "Federación tiene un error temporal en su servidor (Oracle) y no pudo "
+        "cotizar en este momento. La cotización sale con las demás aseguradoras; "
+        "probá Federación de nuevo en unos minutos.")
+
+
 def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo):
     s = sessions[session_id]
     q = s['queue']
@@ -296,8 +349,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
 
         log('Cotizando CF...')
-        page.click('input#cotizar_')
-        page.wait_for_load_state("networkidle", timeout=30000)
+        _cotizar_fp(page, log)
         time.sleep(5)
 
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -410,8 +462,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
         page.select_option('select#formaPago', value='2')
         time.sleep(1)
-        page.click('input#cotizar_')
-        page.wait_for_load_state("networkidle", timeout=30000)
+        _cotizar_fp(page, log)
         time.sleep(3)
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(2)
@@ -446,8 +497,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
         page.select_option('select#formaPago', value='2')
         time.sleep(1)
-        page.click('input#cotizar_')
-        page.wait_for_load_state("networkidle", timeout=30000)
+        _cotizar_fp(page, log)
         time.sleep(3)
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(2)
@@ -482,8 +532,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
         page.select_option('select#formaPago', value='2')
         time.sleep(1)
-        page.click('input#cotizar_')
-        page.wait_for_load_state("networkidle", timeout=30000)
+        _cotizar_fp(page, log)
         time.sleep(3)
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(2)
