@@ -18,7 +18,7 @@ import sys
 import subprocess
 from pathlib import Path
 from scrapers import meridional, fedpat
-from scrapers.common import HEADLESS, mensaje_error
+from scrapers.common import HEADLESS, mensaje_error, guardar_diagnostico
 import notifier
 
 
@@ -758,6 +758,13 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         if ctx:
             error_directo += f"\nCONTEXTO PREVIO: {type(ctx).__name__}: {ctx}"
         log(f"ERROR REAL: {error_directo}")
+        # Captura del punto exacto donde se trabó Sancor (carpeta "diagnostico").
+        try:
+            _pg = locals().get('cotizador') or locals().get('page')
+            if _pg is not None:
+                guardar_diagnostico(_pg, 'sancor_error', log)
+        except Exception:
+            pass
         try:
             with open("C:/Users/User/Desktop/Cotizador Siluseg/error_log.txt", "a") as f:
                 f.write(f"\n{'='*50}\n{error_directo}\n")

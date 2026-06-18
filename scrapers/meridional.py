@@ -3,7 +3,7 @@ import time
 import json
 import re
 
-from scrapers.common import HEADLESS, mensaje_error
+from scrapers.common import HEADLESS, mensaje_error, guardar_diagnostico
 
 URL_LOGIN = "https://ws8.meridionalnet.com.ar/Account/Login?ReturnUrl=%2F"
 USUARIO   = "RJBERNARDO"
@@ -398,6 +398,13 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
     except Exception as e:
         import traceback
         log(f'Error: {traceback.format_exc()}')
+        # Captura del punto exacto donde se trabó (carpeta "diagnostico").
+        try:
+            _pg = locals().get('cotizador') or locals().get('page')
+            if _pg is not None:
+                guardar_diagnostico(_pg, 'meridional_error', log)
+        except Exception:
+            pass
         sessions[session_id]['resultados']['Meridional'] = {
             'aseguradora': 'Meridional',
             'ok':          False,
