@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cotizador Siluseg</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #222f5b;
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    /* Logo en blanco sobre el fondo azul */
+    header .logo-img { height: 48px; filter: brightness(0) invert(1); }
+
+    main {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1a365d;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #ebf4ff;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    input, select {
+      padding: 10px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      color: #2d3748;
+      transition: border-color 0.15s;
+      outline: none;
+      background: white;
+    }
+    input:focus, select:focus { border-color: #3182ce; }
+    input::placeholder { color: #a0aec0; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #2b6cb0; color: white; }
+    .btn-primary:hover { background: #2c5282; }
+    .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; transform: none; }
+    .btn-success { background: #276749; color: white; }
+    .btn-success:hover { background: #22543d; }
+    .btn-full { width: 100%; margin-top: 24px; }
+
+    #section-progress { display: none; }
+
+    .log-box {
+      background: #1a202c;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 13px;
+      color: #68d391;
+      height: 220px;
+      overflow-y: auto;
+      line-height: 1.7;
+    }
+    .log-box .log-line::before { content: "▸ "; color: #4a9963; }
+    .log-box .log-error { color: #fc8181; }
+    .log-box .log-error::before { content: "✕ "; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #section-modelos, #section-modelos-fedpat, #section-tipos-fedpat,
+    #section-modelos-meridional { display: none; }
+
+    .model-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 16px 0 24px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .model-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .model-option:hover { border-color: #90cdf4; background: #ebf8ff; }
+    .model-option input[type="radio"] { accent-color: #2b6cb0; width: 16px; height: 16px; }
+    .model-option.selected { border-color: #2b6cb0; background: #ebf8ff; }
+    .model-option span { font-size: 14px; font-weight: 500; }
+
+    /* Badge FedPat */
+    .badge-fedpat { background: #fff5f0; color: #c05621; }
+
+    #section-done { display: none; }
+
+    .done-banner {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #f0fff4;
+      border: 2px solid #9ae6b4;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .done-banner .icon { font-size: 32px; }
+    .done-banner .text h3 { font-size: 16px; font-weight: 600; color: #276749; }
+    .done-banner .text p { font-size: 13px; color: #4a5568; margin-top: 2px; }
+
+    .error-box {
+      background: #fff5f5;
+      border: 2px solid #fc8181;
+      border-radius: 8px;
+      padding: 16px;
+      color: #c53030;
+      font-size: 14px;
+      display: none;
+      margin-top: 16px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-left: 12px;
+    }
+    .badge-running { background: #ebf8ff; color: #2b6cb0; }
+    .badge-waiting { background: #fffaf0; color: #c05621; }
+    .pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .pulse-blue { background: #3182ce; }
+    .pulse-orange { background: #dd6b20; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img class="logo-img" src="/logo.png" alt="Siluseg" />
+</header>
+
+<main>
+
+  <!-- Form -->
+  <div class="card" id="section-form">
+    <h2>Nueva cotización</h2>
+    <form id="form-cotizar" autocomplete="off">
+      <div class="form-row">
+        <div class="form-group">
+          <label>DNI del cliente</label>
+          <input type="text" id="dni" placeholder="Ej: 28735717" required />
+        </div>
+        <div class="form-group">
+          <label>Apellido</label>
+          <input type="text" id="apellido" placeholder="Ej: BERNARDO" required />
+        </div>
+        <div class="form-group">
+          <label>Nombre</label>
+          <input type="text" id="nombre" placeholder="Ej: RODRIGO" required />
+        </div>
+        <div class="form-group">
+          <label>Fecha de nacimiento</label>
+          <input type="date" id="fecha-nacimiento" required />
+        </div>
+        <div class="form-group">
+          <label>Estado civil</label>
+          <select id="estado-civil">
+            <option value="SOLTERO" selected>Soltero/a</option>
+            <option value="CASADO">Casado/a</option>
+            <option value="DIVORCIADO">Divorciado/a</option>
+            <option value="VIUDO">Viudo/a</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Año del vehículo</label>
+          <input type="text" id="anio" placeholder="Ej: 2024" maxlength="4" required />
+        </div>
+        <div class="form-group">
+          <label>Marca</label>
+          <input type="text" id="marca" placeholder="Ej: CHEVROLET" required />
+        </div>
+        <div class="form-group">
+          <label>Buscar modelo</label>
+          <input type="text" id="modelo" placeholder="Ej: CRUZE" required />
+        </div>
+        <div class="form-group">
+          <label>Provincia</label>
+          <select id="provincia">
+            <option value="BUENOS AIRES" selected>Buenos Aires</option>
+            <option value="CAPITAL FEDERAL">Capital Federal</option>
+            <option value="CÓRDOBA">Córdoba</option>
+            <option value="SANTA FE">Santa Fe</option>
+            <option value="TUCUMAN">Tucumán</option>
+            <option value="MENDOZA">Mendoza</option>
+            <option value="SALTA">Salta</option>
+            <option value="ENTRE RIOS">Entre Ríos</option>
+            <option value="CORRIENTES">Corrientes</option>
+            <option value="CHACO">Chaco</option>
+            <option value="MISIONES">Misiones</option>
+            <option value="SAN JUAN">San Juan</option>
+            <option value="SAN LUIS">San Luis</option>
+            <option value="JUJUY">Jujuy</option>
+            <option value="LA RIOJA">La Rioja</option>
+            <option value="CATAMARCA">Catamarca</option>
+            <option value="LA PAMPA">La Pampa</option>
+            <option value="NEUQUEN">Neuquén</option>
+            <option value="RIO NEGRO">Río Negro</option>
+            <option value="CHUBUT">Chubut</option>
+            <option value="SANTA CRUZ">Santa Cruz</option>
+            <option value="TIERRA DEL FUEGO">Tierra del Fuego</option>
+            <option value="SANTIAGO DEL ESTERO">Santiago del Estero</option>
+            <option value="FORMOSA">Formosa</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Localidad del cliente</label>
+          <input type="text" id="localidad" placeholder="Ej: HAEDO" required />
+        </div>
+        <div class="form-group">
+          <label>Sexo</label>
+          <select id="sexo">
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Email del cliente</label>
+          <input type="email" id="email" placeholder="Ej: cliente@email.com" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="btn-cotizar">
+        Iniciar cotización
+      </button>
+    </form>
+  </div>
+
+  <!-- Progress -->
+  <div class="card" id="section-progress">
+    <h2>
+      Progreso
+      <span class="status-badge badge-running" id="badge">
+        <span class="pulse pulse-blue"></span> Procesando
+      </span>
+    </h2>
+    <div class="log-box" id="log-box"></div>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <!-- Selección modelo Sancor -->
+  <div class="card" id="section-modelos">
+    <h2>
+      Sancor — Seleccioná el modelo
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Elegí el modelo correcto para continuar.
+    </p>
+    <div class="model-list" id="model-list"></div>
+    <button class="btn btn-primary" id="btn-confirmar-modelo" disabled>
+      Confirmar modelo
+    </button>
+  </div>
+
+  <!-- Selección modelo FedPat -->
+  <div class="card" id="section-modelos-fedpat">
+    <h2>
+      Federación Patronal — Seleccioná el modelo
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Elegí el modelo correcto para Federación Patronal.
+    </p>
+    <div class="model-list" id="model-list-fedpat"></div>
+    <button class="btn btn-primary" id="btn-confirmar-modelo-fedpat" disabled>
+      Confirmar modelo
+    </button>
+  </div>
+
+  <!-- Selección tipo vehículo FedPat -->
+  <div class="card" id="section-tipos-fedpat">
+    <h2>
+      Federación Patronal — Tipo de vehículo
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Elegí el tipo de vehículo para Federación Patronal.
+    </p>
+    <div class="model-list" id="tipos-list-fedpat"></div>
+    <button class="btn btn-primary" id="btn-confirmar-tipo-fedpat" disabled>
+      Confirmar tipo
+    </button>
+  </div>
+
+  <!-- Selección modelo Meridional -->
+  <div class="card" id="section-modelos-meridional">
+    <h2>
+      Meridional — Seleccioná el modelo
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Elegí el modelo correcto para Meridional.
+    </p>
+    <div class="model-list" id="model-list-meridional"></div>
+    <button class="btn btn-primary" id="btn-confirmar-modelo-meridional" disabled>
+      Confirmar modelo
+    </button>
+  </div>
+
+  <!-- Done -->
+  <div class="card" id="section-done">
+    <div class="done-banner">
+      <div class="icon">✅</div>
+      <div class="text">
+        <h3>¡Cotización completada!</h3>
+        <p id="done-filename">El PDF fue generado exitosamente.</p>
+      </div>
+    </div>
+    <a id="btn-descargar" href="#" class="btn btn-success btn-full">
+      Descargar PDF
+    </a>
+
+    <!-- Compartir cotización -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <p style="font-size:14px;font-weight:600;color:#4a5568;margin-bottom:10px">
+        Enviar cotización
+      </p>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input type="tel" id="whatsapp-numero" placeholder="WhatsApp (ej: 1155667788, opcional)"
+               style="flex:1;padding:10px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:14px" />
+        <button class="btn" id="btn-whatsapp"
+                style="background:#25d366;color:white;white-space:nowrap">
+          WhatsApp
+        </button>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <input type="email" id="email-destino" placeholder="Email del cliente"
+               style="flex:1;padding:10px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:14px" />
+        <button class="btn btn-primary" id="btn-email" style="white-space:nowrap">
+          Enviar email
+        </button>
+      </div>
+      <p id="envio-status" style="font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+
+    <button class="btn btn-primary btn-full" style="margin-top:16px;background:#4a5568"
+            onclick="resetApp()">
+      Nueva cotización
+    </button>
+  </div>
+
+</main>
+
+<script>
+  let currentSessionId = null;
+  let currentModelos = [];
+  let currentModelosFedpat = [];
+  let currentTiposFedpat = [];
+  let currentModelosMeridional = [];
+  let selectedModelIndex = null;
+  let selectedModelFedpatIndex = null;
+  let selectedTipoFedpatIndex = null;
+  let selectedModelMeridionalIndex = null;
+  let evtSource = null;
+
+  const form = document.getElementById('form-cotizar');
+  const btnCotizar = document.getElementById('btn-cotizar');
+  const logBox = document.getElementById('log-box');
+  const errorBox = document.getElementById('error-box');
+
+  function show(id) { document.getElementById(id).style.display = 'block'; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+  function appendLog(msg, isError = false) {
+    const line = document.createElement('div');
+    line.className = 'log-line' + (isError ? ' log-error' : '');
+    line.textContent = msg;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const dni      = document.getElementById('dni').value.trim();
+    const anio     = document.getElementById('anio').value.trim();
+    const marca    = document.getElementById('marca').value.trim();
+    const modelo   = document.getElementById('modelo').value.trim();
+    const localidad = document.getElementById('localidad').value.trim().toUpperCase();
+    const provincia = document.getElementById('provincia').value;
+    const sexo     = document.getElementById('sexo').value;
+    const email    = document.getElementById('email').value.trim();
+    const apellido = document.getElementById('apellido').value.trim().toUpperCase();
+    const nombre   = document.getElementById('nombre').value.trim().toUpperCase();
+    const fecha_nacimiento = document.getElementById('fecha-nacimiento').value;
+    const estado_civil     = document.getElementById('estado-civil').value;
+
+    btnCotizar.disabled = true;
+    btnCotizar.innerHTML = '<span class="spinner"></span> Iniciando...';
+    logBox.innerHTML = '';
+    errorBox.style.display = 'none';
+    show('section-progress');
+
+    try {
+      const res = await fetch('/api/cotizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo, email,
+                               apellido, nombre, fecha_nacimiento, estado_civil }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al iniciar cotización');
+
+      currentSessionId = data.session_id;
+      startSSE(currentSessionId);
+    } catch (err) {
+      appendLog(err.message, true);
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+      btnCotizar.disabled = false;
+      btnCotizar.textContent = 'Iniciar cotización';
+    }
+  });
+
+  function startSSE(sessionId) {
+    evtSource = new EventSource(`/api/eventos/${sessionId}`);
+
+    evtSource.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'ping') return;
+
+      if (msg.type === 'log') appendLog(msg.msg);
+
+      // Sancor: selección de modelo
+      if (msg.type === 'modelos') {
+        currentModelos = msg.modelos;
+        showSeleccion('section-modelos', 'model-list', msg.modelos, (i) => {
+          selectedModelIndex = i;
+          document.getElementById('btn-confirmar-modelo').disabled = false;
+        });
+      }
+
+      // FedPat: selección de modelo
+      if (msg.type === 'modelos_fedpat') {
+        currentModelosFedpat = msg.modelos;
+        showSeleccion('section-modelos-fedpat', 'model-list-fedpat',
+          msg.modelos.map(m => m.texto), (i) => {
+            selectedModelFedpatIndex = i;
+            document.getElementById('btn-confirmar-modelo-fedpat').disabled = false;
+          });
+      }
+
+      // Meridional: selección de modelo
+      if (msg.type === 'modelos_meridional') {
+        currentModelosMeridional = msg.modelos;
+        showSeleccion('section-modelos-meridional', 'model-list-meridional', msg.modelos, (i) => {
+          selectedModelMeridionalIndex = i;
+          document.getElementById('btn-confirmar-modelo-meridional').disabled = false;
+        });
+      }
+
+      // FedPat: selección de tipo de vehículo
+      if (msg.type === 'tipos_fedpat') {
+        currentTiposFedpat = msg.tipos;
+        showSeleccion('section-tipos-fedpat', 'tipos-list-fedpat',
+          msg.tipos.map(t => t.texto), (i) => {
+            selectedTipoFedpatIndex = i;
+            document.getElementById('btn-confirmar-tipo-fedpat').disabled = false;
+          });
+      }
+
+      if (msg.type === 'done') {
+        evtSource.close();
+        showDone(msg.pdf_filename, msg.pdf_token);
+      }
+
+      if (msg.type === 'error') {
+        evtSource.close();
+        appendLog(msg.msg, true);
+        errorBox.textContent = msg.msg;
+        errorBox.style.display = 'block';
+        document.getElementById('badge').innerHTML = '<span style="color:#c53030">✕ Error</span>';
+        btnCotizar.disabled = false;
+        btnCotizar.textContent = 'Iniciar cotización';
+      }
+    };
+
+    evtSource.onerror = () => {
+      if (evtSource.readyState === EventSource.CLOSED) return;
+      appendLog('Conexión interrumpida. Reconectando...', true);
+    };
+  }
+
+  function showSeleccion(sectionId, listId, opciones, onSelect) {
+    const list = document.getElementById(listId);
+    list.innerHTML = '';
+    opciones.forEach((texto, i) => {
+      const div = document.createElement('label');
+      div.className = 'model-option';
+      div.innerHTML = `<input type="radio" name="${listId}_radio" value="${i}" /><span>${texto}</span>`;
+      div.querySelector('input').addEventListener('change', () => {
+        list.querySelectorAll('.model-option').forEach(el => el.classList.remove('selected'));
+        div.classList.add('selected');
+        onSelect(i);
+      });
+      list.appendChild(div);
+    });
+    show(sectionId);
+    document.getElementById(sectionId).scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Confirmar modelo Sancor
+  document.getElementById('btn-confirmar-modelo').addEventListener('click', async () => {
+    if (selectedModelIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-modelo');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-modelos');
+    document.getElementById('badge').innerHTML = '<span class="pulse pulse-blue"></span> Procesando';
+    await confirmarSeleccion('/api/seleccionar-modelo', { session_id: currentSessionId, modelo_index: selectedModelIndex });
+    appendLog(`Modelo Sancor confirmado: ${currentModelos[selectedModelIndex]}`);
+  });
+
+  // Confirmar modelo FedPat
+  document.getElementById('btn-confirmar-modelo-fedpat').addEventListener('click', async () => {
+    if (selectedModelFedpatIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-modelo-fedpat');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-modelos-fedpat');
+    await confirmarSeleccion('/api/seleccionar-modelo-fedpat', { session_id: currentSessionId, modelo_index: selectedModelFedpatIndex });
+    appendLog(`Modelo FedPat confirmado: ${currentModelosFedpat[selectedModelFedpatIndex].texto}`);
+  });
+
+  // Confirmar tipo vehículo FedPat
+  document.getElementById('btn-confirmar-tipo-fedpat').addEventListener('click', async () => {
+    if (selectedTipoFedpatIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-tipo-fedpat');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-tipos-fedpat');
+    await confirmarSeleccion('/api/seleccionar-tipo-fedpat', { session_id: currentSessionId, tipo_index: selectedTipoFedpatIndex });
+    appendLog(`Tipo FedPat confirmado: ${currentTiposFedpat[selectedTipoFedpatIndex].texto}`);
+  });
+
+  // Confirmar modelo Meridional
+  document.getElementById('btn-confirmar-modelo-meridional').addEventListener('click', async () => {
+    if (selectedModelMeridionalIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-modelo-meridional');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-modelos-meridional');
+    document.getElementById('badge').innerHTML = '<span class="pulse pulse-blue"></span> Procesando';
+    await confirmarSeleccion('/api/seleccionar-modelo-meridional', {
+      session_id: currentSessionId,
+      modelo_index: selectedModelMeridionalIndex
+    });
+    appendLog(`Modelo Meridional confirmado: ${currentModelosMeridional[selectedModelMeridionalIndex]}`);
+  });
+
+  async function confirmarSeleccion(url, body) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al confirmar');
+    } catch (err) {
+      appendLog(err.message, true);
+    }
+  }
+
+  let currentPdfFilename = null;
+  let currentPdfToken = null;
+
+  function showDone(filename, pdfToken) {
+    currentPdfFilename = filename;
+    currentPdfToken = pdfToken || null;
+    document.getElementById('badge').innerHTML = '✓ Completado';
+    document.getElementById('badge').className = 'status-badge';
+    document.getElementById('badge').style.cssText = 'background:#f0fff4;color:#276749;margin-left:12px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;';
+    document.getElementById('done-filename').textContent = filename;
+    document.getElementById('btn-descargar').href = `/api/pdf/${filename}`;
+    // Precompletar el destinatario con el email cargado en el formulario
+    const emailCliente = document.getElementById('email').value.trim();
+    if (emailCliente) document.getElementById('email-destino').value = emailCliente;
+    show('section-done');
+    document.getElementById('section-done').scrollIntoView({ behavior: 'smooth' });
+    btnCotizar.disabled = false;
+    btnCotizar.textContent = 'Iniciar cotización';
+  }
+
+  function setEnvioStatus(texto, esError) {
+    const el = document.getElementById('envio-status');
+    el.textContent = texto;
+    el.style.color = esError ? '#c53030' : '#276749';
+    el.style.display = 'block';
+  }
+
+  // Enviar por WhatsApp: abre WhatsApp con el mensaje y el link de descarga
+  document.getElementById('btn-whatsapp').addEventListener('click', () => {
+    if (!currentPdfToken) {
+      setEnvioStatus('No hay link de descarga disponible para esta cotización.', true);
+      return;
+    }
+    const link = `${location.origin}/pdf-publico/${currentPdfToken}`;
+    const mensaje = `Hola! Te envío la cotización de seguro de Siluseg. ` +
+                    `Podés descargar el PDF comparativo acá: ${link}`;
+    let numero = document.getElementById('whatsapp-numero').value.replace(/\D/g, '');
+    if (numero && !numero.startsWith('54')) numero = '549' + numero;
+    const url = numero
+      ? `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`
+      : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  });
+
+  // Enviar por email (con el PDF adjunto)
+  document.getElementById('btn-email').addEventListener('click', async () => {
+    const destinatario = document.getElementById('email-destino').value.trim();
+    if (!destinatario) {
+      setEnvioStatus('Ingresá el email de destino.', true);
+      return;
+    }
+    const btn = document.getElementById('btn-email');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Enviando...';
+    try {
+      const res = await fetch('/api/enviar-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: currentPdfFilename, destinatario }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al enviar');
+      setEnvioStatus(`✓ Email enviado a ${destinatario}`, false);
+    } catch (err) {
+      setEnvioStatus(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar email';
+    }
+  });
+
+  function resetApp() {
+    if (evtSource) evtSource.close();
+    currentSessionId = null;
+    currentModelos = [];
+    currentModelosFedpat = [];
+    currentTiposFedpat = [];
+    currentModelosMeridional = [];
+    selectedModelIndex = null;
+    selectedModelFedpatIndex = null;
+    selectedTipoFedpatIndex = null;
+    selectedModelMeridionalIndex = null;
+    currentPdfFilename = null;
+    currentPdfToken = null;
+    document.getElementById('envio-status').style.display = 'none';
+    document.getElementById('whatsapp-numero').value = '';
+    document.getElementById('email-destino').value = '';
+    logBox.innerHTML = '';
+    errorBox.style.display = 'none';
+    hide('section-progress');
+    hide('section-modelos');
+    hide('section-modelos-fedpat');
+    hide('section-tipos-fedpat');
+    hide('section-modelos-meridional');
+    hide('section-done');
+    btnCotizar.disabled = false;
+    btnCotizar.textContent = 'Iniciar cotización';
+    document.getElementById('form-cotizar').reset();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>

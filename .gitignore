@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+downloads/
+report/.secret_key
+report/pdf_tokens.json
+report/cotizacion_counter.json
+error_log.txt
+
+.browser_profiles/
+.chrome_fedpat/
+*.zip
+.chrome_boot/
+diagnostico/

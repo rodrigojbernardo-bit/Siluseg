@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Siluseg - Acceso</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+    h1 { color: #222f5b; font-size: 22px; margin-bottom: 6px; }
+    p.sub { color: #718096; font-size: 14px; margin-bottom: 24px; }
+    input[type="password"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 14px;
+    }
+    input[type="password"]:focus { outline: none; border-color: #2b6cb0; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2c5282; }
+    .error {
+      background: #fff5f5;
+      color: #c53030;
+      border: 1px solid #feb2b2;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Cotizador Siluseg</h1>
+    <p class="sub">Acceso privado</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="POST">
+      <input type="password" name="clave" placeholder="Clave de acceso" autofocus required />
+      <button type="submit">Ingresar</button>
+    </form>
+  </div>
+</body>
+</html>
