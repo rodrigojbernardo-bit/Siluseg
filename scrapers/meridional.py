@@ -50,7 +50,7 @@ def _select2_pick(page, search_text, option_text, timeout=15000):
 
 
 def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo='M', email='',
-        apellido_nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
+        apellido='', nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
     s = sessions[session_id]
     q = s['queue']
 
@@ -236,18 +236,16 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         cotizador.fill('input#coNroDocumento', dni)
         time.sleep(0.5)
 
-        # Apellido y nombre del formulario ("APELLIDO NOMBRE(S)"):
-        # primera palabra = apellido, el resto = nombres.
-        partes   = (apellido_nombre or '').split()
-        apellido = partes[0] if partes else 'BERNARDO'
-        nombres  = ' '.join(partes[1:]) if len(partes) > 1 else (partes[0] if partes else 'RODRIGO BERNARDO')
+        # Apellido y nombre vienen como campos separados del formulario.
+        apellido_val = (apellido or '').strip() or 'BERNARDO'
+        nombres_val  = (nombre or '').strip() or 'RODRIGO'
 
-        log(f'Ingresando apellido: {apellido}...')
-        cotizador.fill('input#coApellidoRazonSocial', apellido)
+        log(f'Ingresando apellido: {apellido_val}...')
+        cotizador.fill('input#coApellidoRazonSocial', apellido_val)
         time.sleep(0.3)
 
-        log(f'Ingresando nombre: {nombres}...')
-        cotizador.fill('input#coNombres', nombres)
+        log(f'Ingresando nombre: {nombres_val}...')
+        cotizador.fill('input#coNombres', nombres_val)
         time.sleep(0.3)
 
         civil = (estado_civil or 'SOLTERO').upper()

@@ -305,7 +305,7 @@ sessions = {}
 
 
 def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, provincia, sexo, email='',
-                   apellido_nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
+                   apellido='', nombre='', fecha_nacimiento='', estado_civil='SOLTERO'):
     s = sessions[session_id]
     q = s["queue"]
     model_event = s["model_event"]
@@ -324,7 +324,7 @@ def run_automation(session_id, dni, anio, marca, modelo_busqueda, localidad, pro
         meridional_thread = threading.Thread(
             target=meridional.run,
             args=(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, localidad, sexo, email,
-                  apellido_nombre, fecha_nacimiento, estado_civil),
+                  apellido, nombre, fecha_nacimiento, estado_civil),
             daemon=True,
         )
         meridional_thread.start()
@@ -821,7 +821,8 @@ def iniciar_cotizacion():
     provincia = data.get("provincia", "BUENOS AIRES").strip().upper()
     sexo      = data.get("sexo", "M").strip().upper()
     email     = data.get("email", "").strip()
-    apellido_nombre  = data.get("apellido_nombre", "").strip().upper()
+    apellido         = data.get("apellido", "").strip().upper()
+    nombre           = data.get("nombre", "").strip().upper()
     fecha_nacimiento = data.get("fecha_nacimiento", "").strip()
     estado_civil     = data.get("estado_civil", "SOLTERO").strip().upper()
 
@@ -846,7 +847,7 @@ def iniciar_cotizacion():
     threading.Thread(
         target=run_automation,
         args=(session_id, dni, anio, marca, modelo, localidad, provincia, sexo, email,
-              apellido_nombre, fecha_nacimiento, estado_civil),
+              apellido, nombre, fecha_nacimiento, estado_civil),
         daemon=True,
     ).start()
 

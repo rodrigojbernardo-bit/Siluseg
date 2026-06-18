@@ -226,8 +226,12 @@
           <input type="text" id="dni" placeholder="Ej: 28735717" required />
         </div>
         <div class="form-group">
-          <label>Apellido y Nombre</label>
-          <input type="text" id="apellido-nombre" placeholder="Ej: BERNARDO RODRIGO (apellido primero)" required />
+          <label>Apellido</label>
+          <input type="text" id="apellido" placeholder="Ej: BERNARDO" required />
+        </div>
+        <div class="form-group">
+          <label>Nombre</label>
+          <input type="text" id="nombre" placeholder="Ej: RODRIGO" required />
         </div>
         <div class="form-group">
           <label>Fecha de nacimiento</label>
@@ -469,7 +473,8 @@
     const provincia = document.getElementById('provincia').value;
     const sexo     = document.getElementById('sexo').value;
     const email    = document.getElementById('email').value.trim();
-    const apellido_nombre  = document.getElementById('apellido-nombre').value.trim().toUpperCase();
+    const apellido = document.getElementById('apellido').value.trim().toUpperCase();
+    const nombre   = document.getElementById('nombre').value.trim().toUpperCase();
     const fecha_nacimiento = document.getElementById('fecha-nacimiento').value;
     const estado_civil     = document.getElementById('estado-civil').value;
 
@@ -484,7 +489,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dni, anio, marca, modelo, localidad, provincia, sexo, email,
-                               apellido_nombre, fecha_nacimiento, estado_civil }),
+                               apellido, nombre, fecha_nacimiento, estado_civil }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al iniciar cotización');
