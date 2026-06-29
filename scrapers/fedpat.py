@@ -82,22 +82,14 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         page.fill('input#nombreLocalidad', localidad)
         time.sleep(2)
 
+        # FedPat usa div#ajaxAuto_nombreLocalidad con li id=<código>
         localidades_raw = page.evaluate("""
             () => {
-                const inp = document.querySelector('input#nombreLocalidad');
-                if (!inp) return [];
-                const rect = inp.getBoundingClientRect();
-                for (const ul of document.querySelectorAll('ul')) {
-                    if (ul.offsetParent === null) continue;
-                    const ur = ul.getBoundingClientRect();
-                    if (Math.abs(ur.left - rect.left) < 400 && ur.top > rect.top - 5 && ur.top < rect.bottom + 300) {
-                        const items = Array.from(ul.querySelectorAll('li'))
-                            .map(li => ({ id: li.id || '', texto: li.innerText.trim() }))
-                            .filter(o => o.texto.length > 1);
-                        if (items.length > 0) return items;
-                    }
-                }
-                return [];
+                const dropdown = document.querySelector('div#ajaxAuto_nombreLocalidad');
+                if (!dropdown || dropdown.style.display === 'none') return [];
+                return Array.from(dropdown.querySelectorAll('ul li'))
+                    .map(li => ({ id: li.id || '', texto: li.innerText.trim() }))
+                    .filter(o => o.id && o.texto.length > 1);
             }
         """)
 
@@ -111,13 +103,7 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             localidad_index = s.get('localidad_index_fedpat', 0)
             localidad_elegida = localidades_raw[localidad_index]
             log(f'Localidad seleccionada: {localidad_elegida["texto"]}')
-            if localidad_elegida['id']:
-                page.click(f'li#{localidad_elegida["id"]}')
-            else:
-                for li in page.query_selector_all('li'):
-                    if li.inner_text().strip() == localidad_elegida['texto']:
-                        li.click()
-                        break
+            page.click(f'div#ajaxAuto_nombreLocalidad ul li#{localidad_elegida["id"]}')
             time.sleep(1)
         else:
             log(f'Sin opciones de autocomplete para localidad, continuando con: {localidad}')
@@ -196,6 +182,20 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         page.select_option('select#tipo', value=tipo_elegido['value'])
         time.sleep(2)
         log(f'Tipo seleccionado: {tipo_elegido["texto"]}')
+
+        # Extraer suma asegurada del campo del formulario (FedPat la calcula al elegir tipo)
+        capital_text = page.evaluate("""
+            () => {
+                const sa = document.getElementById('sumaAsegurada');
+                if (sa && sa.value && sa.value.trim()) {
+                    const limpio = sa.value.trim().replace(/[^\\d.,]/g, '');
+                    return limpio ? '$' + limpio : '';
+                }
+                return '';
+            }
+        """)
+        if capital_text:
+            log(f'Capital FedPat (del formulario): {capital_text}')
 
         log('Abriendo Plan de cobertura...')
         page.click('span.nombreParaItemNavigato:has-text("Plan de cobertura")')
@@ -284,34 +284,38 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         cuota_cf = cf_data['resultado']
         log(f'CF resultado: {cuota_cf}')
 
-        # Extraer suma asegurada en la página de resultados CF
-        capital_text = page.evaluate(r"""
-            () => {
-                const txt = document.body.innerText;
-                const pats = [
-                    /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
-                    /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
-                    /valor\s+a\s+nuevo[\s\S]{0,80}\$([\d.,]+)/i,
-                ];
-                for (const p of pats) {
-                    const m = txt.match(p);
-                    if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
-                        return '$' + m[1].trim();
-                }
-                for (const el of document.querySelectorAll('td,th,div,span,label,p')) {
-                    const t = (el.innerText || '').trim().toLowerCase();
-                    if (t === 'suma asegurada' || t === 'valor asegurado' || t === 'capital asegurado') {
-                        const sib = el.nextElementSibling;
-                        if (sib) {
-                            const m = (sib.innerText || '').match(/([\d.,]+)/);
-                            if (m) return '$' + m[1];
+        # Intentar obtener suma asegurada de la página de resultados CF (si no se encontró antes)
+        if not capital_text:
+            capital_text = page.evaluate(r"""
+                () => {
+                    const txt = document.body.innerText;
+                    const pats = [
+                        /(?:suma|capital|valor)\s+asegur(?:ada|able|ado)[\s\S]{0,80}\$([\d.,]+)/i,
+                        /valor\s+(?:del\s+)?veh[ií]culo[\s\S]{0,80}\$([\d.,]+)/i,
+                        /valor\s+a\s+nuevo[\s\S]{0,80}\$([\d.,]+)/i,
+                    ];
+                    for (const p of pats) {
+                        const m = txt.match(p);
+                        if (m && m[1] && m[1].replace(/[.,]/g,'').length >= 4)
+                            return '$' + m[1].trim();
+                    }
+                    for (const el of document.querySelectorAll('td,th,div,span,label,p')) {
+                        const t = (el.innerText || '').trim().toLowerCase();
+                        if (t === 'suma asegurada' || t === 'valor asegurado' || t === 'capital asegurado') {
+                            const sib = el.nextElementSibling;
+                            if (sib) {
+                                const m = (sib.innerText || '').match(/([\d.,]+)/);
+                                if (m) return '$' + m[1];
+                            }
                         }
                     }
+                    return '';
                 }
-                return '';
-            }
-        """)
-        log(f'Capital FedPat: {capital_text or "(no encontrado)"}')
+            """)
+            if capital_text:
+                log(f'Capital FedPat (pág. resultados CF): {capital_text}')
+        if not capital_text:
+            log('Capital FedPat: no encontrado en formulario ni en resultados CF')
 
         # TD3 6%
         log('Cotizando TD3 6%...')
