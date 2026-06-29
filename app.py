@@ -730,6 +730,7 @@ def iniciar_cotizacion():
         "model_event_fedpat":        threading.Event(),
         "model_event_meridional":    threading.Event(),
         "modelo_index":              None,
+        "localidad_index_fedpat":    None,
         "modelo_index_fedpat":       None,
         "modelo_index_meridional":   None,
         "tipo_index_fedpat":         None,
@@ -797,6 +798,21 @@ def seleccionar_modelo_fedpat():
 
     s = sessions[session_id]
     s["modelo_index_fedpat"] = int(modelo_index)
+    s["model_event_fedpat"].set()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/seleccionar-localidad-fedpat", methods=["POST"])
+def seleccionar_localidad_fedpat():
+    data = request.json or {}
+    session_id      = data.get("session_id")
+    localidad_index = data.get("localidad_index")
+
+    if session_id not in sessions:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+
+    s = sessions[session_id]
+    s["localidad_index_fedpat"] = int(localidad_index)
     s["model_event_fedpat"].set()
     return jsonify({"ok": True})
 

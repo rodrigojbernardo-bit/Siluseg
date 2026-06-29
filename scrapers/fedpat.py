@@ -82,6 +82,46 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         page.fill('input#nombreLocalidad', localidad)
         time.sleep(2)
 
+        localidades_raw = page.evaluate("""
+            () => {
+                const inp = document.querySelector('input#nombreLocalidad');
+                if (!inp) return [];
+                const rect = inp.getBoundingClientRect();
+                for (const ul of document.querySelectorAll('ul')) {
+                    if (ul.offsetParent === null) continue;
+                    const ur = ul.getBoundingClientRect();
+                    if (Math.abs(ur.left - rect.left) < 400 && ur.top > rect.top - 5 && ur.top < rect.bottom + 300) {
+                        const items = Array.from(ul.querySelectorAll('li'))
+                            .map(li => ({ id: li.id || '', texto: li.innerText.trim() }))
+                            .filter(o => o.texto.length > 1);
+                        if (items.length > 0) return items;
+                    }
+                }
+                return [];
+            }
+        """)
+
+        if localidades_raw:
+            log(f'Se encontraron {len(localidades_raw)} localidades. Esperando selección...')
+            q.put({'type': 'localidades_fedpat', 'localidades': localidades_raw})
+            s['status'] = 'esperando_localidad_fedpat'
+            model_event.clear()
+            model_event.wait(timeout=120)
+
+            localidad_index = s.get('localidad_index_fedpat', 0)
+            localidad_elegida = localidades_raw[localidad_index]
+            log(f'Localidad seleccionada: {localidad_elegida["texto"]}')
+            if localidad_elegida['id']:
+                page.click(f'li#{localidad_elegida["id"]}')
+            else:
+                for li in page.query_selector_all('li'):
+                    if li.inner_text().strip() == localidad_elegida['texto']:
+                        li.click()
+                        break
+            time.sleep(1)
+        else:
+            log(f'Sin opciones de autocomplete para localidad, continuando con: {localidad}')
+
         log('Abriendo menu Riesgo...')
         page.click('span.nombreParaItemNavigato:has-text("Riesgo")')
         time.sleep(2)

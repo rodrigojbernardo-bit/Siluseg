@@ -127,8 +127,8 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #section-modelos, #section-modelos-fedpat, #section-tipos-fedpat,
-    #section-modelos-meridional { display: none; }
+    #section-modelos, #section-localidades-fedpat, #section-modelos-fedpat,
+    #section-tipos-fedpat, #section-modelos-meridional { display: none; }
 
     .model-list {
       display: flex;
@@ -321,6 +321,23 @@
     </button>
   </div>
 
+  <!-- Selección localidad FedPat -->
+  <div class="card" id="section-localidades-fedpat">
+    <h2>
+      Federación Patronal — Seleccioná la localidad
+      <span class="status-badge badge-waiting">
+        <span class="pulse pulse-orange"></span> Esperando selección
+      </span>
+    </h2>
+    <p style="font-size:14px;color:#718096;margin-bottom:8px;">
+      Se encontraron varias localidades. Elegí la que corresponde.
+    </p>
+    <div class="model-list" id="localidades-list-fedpat"></div>
+    <button class="btn btn-primary" id="btn-confirmar-localidad-fedpat" disabled>
+      Confirmar localidad
+    </button>
+  </div>
+
   <!-- Selección modelo FedPat -->
   <div class="card" id="section-modelos-fedpat">
     <h2>
@@ -395,10 +412,12 @@
 <script>
   let currentSessionId = null;
   let currentModelos = [];
+  let currentLocalidadesFedpat = [];
   let currentModelosFedpat = [];
   let currentTiposFedpat = [];
   let currentModelosMeridional = [];
   let selectedModelIndex = null;
+  let selectedLocalidadFedpatIndex = null;
   let selectedModelFedpatIndex = null;
   let selectedTipoFedpatIndex = null;
   let selectedModelMeridionalIndex = null;
@@ -473,6 +492,16 @@
           selectedModelIndex = i;
           document.getElementById('btn-confirmar-modelo').disabled = false;
         });
+      }
+
+      // FedPat: selección de localidad
+      if (msg.type === 'localidades_fedpat') {
+        currentLocalidadesFedpat = msg.localidades;
+        showSeleccion('section-localidades-fedpat', 'localidades-list-fedpat',
+          msg.localidades.map(l => l.texto), (i) => {
+            selectedLocalidadFedpatIndex = i;
+            document.getElementById('btn-confirmar-localidad-fedpat').disabled = false;
+          });
       }
 
       // FedPat: selección de modelo
@@ -556,6 +585,17 @@
     appendLog(`Modelo Sancor confirmado: ${currentModelos[selectedModelIndex]}`);
   });
 
+  // Confirmar localidad FedPat
+  document.getElementById('btn-confirmar-localidad-fedpat').addEventListener('click', async () => {
+    if (selectedLocalidadFedpatIndex === null) return;
+    const btn = document.getElementById('btn-confirmar-localidad-fedpat');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Confirmando...';
+    hide('section-localidades-fedpat');
+    await confirmarSeleccion('/api/seleccionar-localidad-fedpat', { session_id: currentSessionId, localidad_index: selectedLocalidadFedpatIndex });
+    appendLog(`Localidad FedPat confirmada: ${currentLocalidadesFedpat[selectedLocalidadFedpatIndex].texto}`);
+  });
+
   // Confirmar modelo FedPat
   document.getElementById('btn-confirmar-modelo-fedpat').addEventListener('click', async () => {
     if (selectedModelFedpatIndex === null) return;
@@ -623,10 +663,12 @@
     if (evtSource) evtSource.close();
     currentSessionId = null;
     currentModelos = [];
+    currentLocalidadesFedpat = [];
     currentModelosFedpat = [];
     currentTiposFedpat = [];
     currentModelosMeridional = [];
     selectedModelIndex = null;
+    selectedLocalidadFedpatIndex = null;
     selectedModelFedpatIndex = null;
     selectedTipoFedpatIndex = null;
     selectedModelMeridionalIndex = null;
@@ -634,6 +676,7 @@
     errorBox.style.display = 'none';
     hide('section-progress');
     hide('section-modelos');
+    hide('section-localidades-fedpat');
     hide('section-modelos-fedpat');
     hide('section-tipos-fedpat');
     hide('section-modelos-meridional');
