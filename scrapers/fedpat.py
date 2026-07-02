@@ -79,23 +79,52 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
 
         log(f'Ingresando localidad {localidad}...')
-        # Tipear letra a letra para disparar el AJAX autocomplete de FedPat
-        page.triple_click('input#nombreLocalidad')
-        page.keyboard.type(localidad)
-        time.sleep(3)  # esperar respuesta AJAX
+        # Tipear letra a letra (con pausa entre teclas) para disparar el AJAX de FedPat
+        page.click('input#nombreLocalidad')
+        page.fill('input#nombreLocalidad', '')
+        page.type('input#nombreLocalidad', localidad, delay=150)
 
-        # FedPat usa div#ajaxAuto_nombreLocalidad con li id=<código numérico>
-        localidades_raw = page.evaluate("""
+        # Buscar el dropdown de localidades: misma técnica genérica que el modelo
+        # (cualquier UL visible posicionada debajo del input), con reintentos.
+        _js_buscar_localidades = """
             () => {
-                const dropdown = document.querySelector('div#ajaxAuto_nombreLocalidad');
-                if (!dropdown) return [];
-                const cs = window.getComputedStyle(dropdown);
-                if (cs.display === 'none' || cs.visibility === 'hidden') return [];
-                return Array.from(dropdown.querySelectorAll('ul li'))
-                    .map(li => ({ id: li.id || '', texto: li.innerText.trim() }))
-                    .filter(o => o.id && o.texto.length > 1);
+                const input = document.getElementById('nombreLocalidad');
+                if (!input) return [];
+                const inputRect = input.getBoundingClientRect();
+                const todos = document.querySelectorAll('ul');
+                for (let el of todos) {
+                    if (el.offsetParent === null) continue;
+                    if (el.children.length < 1) continue;
+                    const rect = el.getBoundingClientRect();
+                    if (Math.abs(rect.left - inputRect.left) < 300 && rect.top >= inputRect.top) {
+                        const items = Array.from(el.querySelectorAll('li'))
+                            .map((li, idx) => ({
+                                id: li.id || '',
+                                idx: idx,
+                                texto: li.innerText.trim()
+                            }))
+                            .filter(o => o.texto.length > 1);
+                        if (items.length > 0) return items;
+                    }
+                }
+                return [];
             }
-        """)
+        """
+        localidades_raw = []
+        for intento in range(10):
+            time.sleep(1)
+            localidades_raw = page.evaluate(_js_buscar_localidades)
+            if localidades_raw:
+                break
+            if intento == 4:
+                # A mitad de camino: re-disparar el autocomplete borrando y
+                # retipeando la última letra
+                log('Reintentando disparar el autocomplete de localidad...')
+                page.click('input#nombreLocalidad')
+                page.keyboard.press('End')
+                page.keyboard.press('Backspace')
+                time.sleep(1)
+                page.type('input#nombreLocalidad', localidad[-1], delay=150)
 
         if localidades_raw:
             log(f'Se encontraron {len(localidades_raw)} localidades. Esperando selección...')
@@ -108,17 +137,40 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             localidad_elegida = localidades_raw[localidad_index]
             log(f'Localidad seleccionada: {localidad_elegida["texto"]}')
             li_id = localidad_elegida['id']
-            try:
-                page.click(f'div#ajaxAuto_nombreLocalidad ul li#{li_id}')
-            except Exception:
-                # Si el dropdown ya se ocultó, forzar el click por JS
-                page.evaluate(f"""
-                    () => {{
-                        const li = document.querySelector('div#ajaxAuto_nombreLocalidad ul li#{li_id}');
-                        if (li) li.click();
-                    }}
-                """)
-            time.sleep(1)
+            clicked = False
+            if li_id:
+                try:
+                    page.click(f'li[id="{li_id}"]')
+                    clicked = True
+                except Exception:
+                    pass
+            if not clicked:
+                # Click por posición dentro del dropdown, disparando los eventos
+                # de mouse que el autocomplete de FedPat escucha
+                page.evaluate("""
+                    (args) => {
+                        const input = document.getElementById('nombreLocalidad');
+                        const inputRect = input.getBoundingClientRect();
+                        const todos = document.querySelectorAll('ul');
+                        for (let el of todos) {
+                            if (el.offsetParent === null) continue;
+                            const rect = el.getBoundingClientRect();
+                            if (Math.abs(rect.left - inputRect.left) < 300 && rect.top >= inputRect.top) {
+                                const items = Array.from(el.querySelectorAll('li'))
+                                    .filter(li => li.innerText.trim().length > 1);
+                                const li = items[args.idx];
+                                if (li) {
+                                    for (const tipo of ['mouseover', 'mousedown', 'mouseup', 'click']) {
+                                        li.dispatchEvent(new MouseEvent(tipo, { bubbles: true, cancelable: true, view: window }));
+                                    }
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                """, {'idx': localidad_elegida['idx']})
+            time.sleep(2)
         else:
             log(f'Sin opciones de autocomplete para localidad, continuando con: {localidad}')
 
