@@ -79,14 +79,18 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
         time.sleep(1)
 
         log(f'Ingresando localidad {localidad}...')
-        page.fill('input#nombreLocalidad', localidad)
-        time.sleep(2)
+        # Tipear letra a letra para disparar el AJAX autocomplete de FedPat
+        page.triple_click('input#nombreLocalidad')
+        page.keyboard.type(localidad)
+        time.sleep(3)  # esperar respuesta AJAX
 
-        # FedPat usa div#ajaxAuto_nombreLocalidad con li id=<código>
+        # FedPat usa div#ajaxAuto_nombreLocalidad con li id=<código numérico>
         localidades_raw = page.evaluate("""
             () => {
                 const dropdown = document.querySelector('div#ajaxAuto_nombreLocalidad');
-                if (!dropdown || dropdown.style.display === 'none') return [];
+                if (!dropdown) return [];
+                const cs = window.getComputedStyle(dropdown);
+                if (cs.display === 'none' || cs.visibility === 'hidden') return [];
                 return Array.from(dropdown.querySelectorAll('ul li'))
                     .map(li => ({ id: li.id || '', texto: li.innerText.trim() }))
                     .filter(o => o.id && o.texto.length > 1);
@@ -103,7 +107,17 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             localidad_index = s.get('localidad_index_fedpat', 0)
             localidad_elegida = localidades_raw[localidad_index]
             log(f'Localidad seleccionada: {localidad_elegida["texto"]}')
-            page.click(f'div#ajaxAuto_nombreLocalidad ul li#{localidad_elegida["id"]}')
+            li_id = localidad_elegida['id']
+            try:
+                page.click(f'div#ajaxAuto_nombreLocalidad ul li#{li_id}')
+            except Exception:
+                # Si el dropdown ya se ocultó, forzar el click por JS
+                page.evaluate(f"""
+                    () => {{
+                        const li = document.querySelector('div#ajaxAuto_nombreLocalidad ul li#{li_id}');
+                        if (li) li.click();
+                    }}
+                """)
             time.sleep(1)
         else:
             log(f'Sin opciones de autocomplete para localidad, continuando con: {localidad}')
