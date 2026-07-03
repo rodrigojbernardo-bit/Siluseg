@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright
 import time
 import json
 import re
+import unicodedata
 
 URL_LOGIN = "https://ws8.meridionalnet.com.ar/Account/Login?ReturnUrl=%2F"
 USUARIO   = "RJBERNARDO"
@@ -25,6 +26,30 @@ def _parse_precio(texto):
         return v if v > 0 else None
     except Exception:
         return None
+
+
+def _normalizar(texto):
+    """Mayúsculas, sin acentos y sin espacios repetidos, para comparar nombres."""
+    t = unicodedata.normalize('NFD', texto)
+    t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
+    return re.sub(r'\s+', ' ', t).strip().upper()
+
+
+# Nombres alternativos con los que las aseguradoras suelen listar cada provincia
+_ALIAS_PROVINCIA = {
+    'CAPITAL FEDERAL': [
+        'CAPITAL FEDERAL',
+        'CIUDAD AUTONOMA DE BUENOS AIRES',
+        'CIUDAD DE BUENOS AIRES',
+        'C.A.B.A.',
+        'CABA',
+    ],
+    'BUENOS AIRES': [
+        'BUENOS AIRES',
+        'PROVINCIA DE BUENOS AIRES',
+        'BS. AS.',
+    ],
+}
 
 
 def _select2_open(page, field_id):
@@ -121,8 +146,42 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, provincia, loca
         # ── PROVINCIA ─────────────────────────────────────────────────────────
         log(f'Seleccionando provincia: {provincia}...')
         _select2_open(cotizador, 'coProvincia')
-        _select2_pick(cotizador, provincia, provincia)
-        log(f'Provincia OK: {provincia}')
+        cotizador.wait_for_selector('#select2-drop', state='visible', timeout=15000)
+        time.sleep(1)
+
+        # Leer todas las provincias que ofrece Meridional (sin filtrar)
+        opciones_prov = cotizador.evaluate("""
+            () => Array.from(document.querySelectorAll('#select2-drop div.select2-result-label'))
+                .map(el => el.innerText.trim())
+                .filter(t => t.length > 0)
+        """)
+        log(f'Provincias en Meridional: {opciones_prov}')
+
+        objetivo    = _normalizar(provincia)
+        candidatos  = [_normalizar(a) for a in _ALIAS_PROVINCIA.get(objetivo, [objetivo])]
+        prov_elegida = None
+        # 1) coincidencia exacta (normalizada) con el nombre o alguno de sus alias
+        for op in opciones_prov:
+            if _normalizar(op) in candidatos:
+                prov_elegida = op
+                break
+        # 2) coincidencia parcial (uno contiene al otro)
+        if prov_elegida is None:
+            for op in opciones_prov:
+                n = _normalizar(op)
+                if any(c in n or n in c for c in candidatos):
+                    prov_elegida = op
+                    break
+        if prov_elegida is None:
+            raise Exception(
+                f'Provincia "{provincia}" no encontrada en Meridional. '
+                f'Opciones: {opciones_prov}'
+            )
+
+        idx_prov = opciones_prov.index(prov_elegida)
+        cotizador.click(f'#select2-drop div.select2-result-label >> nth={idx_prov}')
+        time.sleep(1)
+        log(f'Provincia OK: {prov_elegida}')
         time.sleep(2)  # esperar que carguen las localidades dependientes
 
         # ── LOCALIDAD (búsqueda remota — mín 2 chars) ─────────────────────────
