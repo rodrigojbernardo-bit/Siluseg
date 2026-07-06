@@ -78,110 +78,82 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             page.click('input#sexoF')
         time.sleep(1)
 
-        log(f'Ingresando localidad {localidad}...')
-        # Tipear letra a letra (con pausa entre teclas) para disparar el AJAX de FedPat
-        page.click('input#nombreLocalidad')
-        page.fill('input#nombreLocalidad', '')
-        page.type('input#nombreLocalidad', localidad, delay=150)
+        log(f'Buscando localidades para "{localidad}"...')
+        page.fill('input#nombreLocalidad', localidad)
+        time.sleep(1)
 
-        # Extraer las opciones del autocomplete. Se busca de lo más específico
-        # a lo más genérico: 1) contenedores con id que contenga "ajaxAuto"
-        # (aunque estén marcados ocultos, si tienen items es que el AJAX
-        # respondió), 2) cualquier UL con área en pantalla y LIs con texto.
-        _js_extraer = """
-            () => {
-                const arriba = (li) => li.innerText.trim();
-                const conts = document.querySelectorAll('[id*="ajaxAuto" i]');
-                for (const c of conts) {
-                    const items = Array.from(c.querySelectorAll('li'))
-                        .map((li, idx) => ({ id: li.id || '', idx: idx, texto: arriba(li) }))
-                        .filter(o => o.texto.length > 1);
-                    if (items.length > 0) return { fuente: 'ajaxAuto:' + c.id, items: items };
-                }
-                const input = document.getElementById('nombreLocalidad');
-                const inputRect = input ? input.getBoundingClientRect() : null;
-                let mejor = null;
-                document.querySelectorAll('ul, ol').forEach(ul => {
-                    const rect = ul.getBoundingClientRect();
-                    if (rect.width < 30 || rect.height < 10) return;
-                    if (inputRect && Math.abs(rect.left - inputRect.left) > 400) return;
-                    const items = Array.from(ul.querySelectorAll('li'))
-                        .map((li, idx) => ({ id: li.id || '', idx: idx, texto: arriba(li) }))
-                        .filter(o => o.texto.length > 1);
-                    if (items.length === 0) return;
-                    if (!mejor || items.length > mejor.items.length) {
-                        mejor = { fuente: 'ul-generico', items: items };
+        # FedPat usa la librería ajaxtags: su autocomplete consulta
+        # /self/selectLocalidad.do?method=autocompleteLocalidad&nombreLocalidad=<texto>
+        # y recibe un XML con pares <name>/<value>. Consultamos ese endpoint
+        # directamente con las cookies de la sesión, igual que hace la página,
+        # sin depender del dropdown visual.
+        localidades_raw = page.evaluate("""
+            async (texto) => {
+                const parsear = (xmlText) => {
+                    let items = [];
+                    try {
+                        const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+                        items = Array.from(doc.querySelectorAll('item')).map(it => {
+                            const n = it.querySelector('name');
+                            const v = it.querySelector('value');
+                            return {
+                                id: v ? v.textContent.trim() : '',
+                                texto: n ? n.textContent.trim() : ''
+                            };
+                        });
+                    } catch (e) {}
+                    if (items.length === 0) {
+                        const nombres = [...xmlText.matchAll(/<name>([^<]*)<\\/name>/g)];
+                        const valores = [...xmlText.matchAll(/<value>([^<]*)<\\/value>/g)];
+                        items = nombres.map((m, i) => ({
+                            id: valores[i] ? valores[i][1].trim() : '',
+                            texto: m[1].trim()
+                        }));
                     }
-                });
-                return mejor || { fuente: null, items: [] };
-            }
-        """
-
-        # Diagnóstico: qué contenedores/listas hay en la página en este momento
-        _js_diagnostico = """
-            () => {
-                const out = { ajax: [], uls: [] };
-                document.querySelectorAll('[id*="ajaxAuto" i]').forEach(el => {
-                    const cs = window.getComputedStyle(el);
-                    out.ajax.push({
-                        id: el.id, tag: el.tagName, display: cs.display,
-                        vis: cs.visibility, lis: el.querySelectorAll('li').length,
-                        texto: el.innerText.trim().slice(0, 100)
+                    return items
+                        .filter(o => o.texto.length > 1)
+                        .map((o, idx) => ({ id: o.id, idx: idx, texto: o.texto }));
+                };
+                const qs = 'method=autocompleteLocalidad&nombreLocalidad=' + encodeURIComponent(texto);
+                try {
+                    let r = await fetch('/self/selectLocalidad.do?' + qs, { credentials: 'same-origin' });
+                    let items = parsear(await r.text());
+                    if (items.length > 0) return items;
+                    r = await fetch('/self/selectLocalidad.do', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: qs
                     });
-                });
-                document.querySelectorAll('ul').forEach(ul => {
-                    const lis = ul.querySelectorAll('li');
-                    if (lis.length === 0) return;
-                    const rect = ul.getBoundingClientRect();
-                    out.uls.push({
-                        id: ul.id || '(sin id)',
-                        padre: ul.parentElement ? (ul.parentElement.id || ul.parentElement.tagName) : '',
-                        visible: rect.width > 0 && rect.height > 0,
-                        lis: lis.length,
-                        primeros: Array.from(lis).slice(0, 3).map(li => li.innerText.trim().slice(0, 40))
-                    });
-                });
-                return out;
+                    return parsear(await r.text());
+                } catch (e) {
+                    return [];
+                }
             }
-        """
+        """, localidad)
 
-        def _buscar_en_frames():
-            """Busca las opciones en la página principal y en todos sus frames."""
-            for fr in page.frames:
-                try:
-                    res = fr.evaluate(_js_extraer)
-                    if res and res.get('items'):
-                        return fr, res
-                except Exception:
-                    continue
-            return None, None
-
-        frame_loc = None
-        resultado = None
-        for intento in range(12):
-            time.sleep(1)
-            frame_loc, resultado = _buscar_en_frames()
-            if resultado:
-                break
-            if intento == 5:
-                # A mitad de camino: volcar diagnóstico al log y re-disparar
-                # el autocomplete borrando y retipeando la última letra
-                try:
-                    diag = page.evaluate(_js_diagnostico)
-                    log(f'[Diagnóstico localidad] {json.dumps(diag, ensure_ascii=False)[:900]}')
-                except Exception:
-                    pass
-                log('Reintentando disparar el autocomplete de localidad...')
-                page.click('input#nombreLocalidad')
-                page.keyboard.press('End')
-                page.keyboard.press('Backspace')
+        if not localidades_raw:
+            # Plan B: tipear para disparar el autocomplete visual y leer el dropdown
+            log('El endpoint no devolvió localidades, probando con el dropdown visual...')
+            page.click('input#nombreLocalidad')
+            page.fill('input#nombreLocalidad', '')
+            page.type('input#nombreLocalidad', localidad, delay=150)
+            for _ in range(8):
                 time.sleep(1)
-                page.type('input#nombreLocalidad', localidad[-1], delay=150)
+                localidades_raw = page.evaluate("""
+                    () => {
+                        const cont = document.querySelector('[id*="ajaxAuto" i]');
+                        if (!cont) return [];
+                        return Array.from(cont.querySelectorAll('li'))
+                            .map((li, idx) => ({ id: li.id || '', idx: idx, texto: li.innerText.trim() }))
+                            .filter(o => o.texto.length > 1);
+                    }
+                """)
+                if localidades_raw:
+                    break
 
-        if resultado:
-            localidades_raw = resultado['items']
-            log(f'Se encontraron {len(localidades_raw)} localidades '
-                f'(fuente: {resultado.get("fuente")}). Esperando selección...')
+        if localidades_raw:
+            log(f'Se encontraron {len(localidades_raw)} localidades. Esperando selección...')
             q.put({'type': 'localidades_fedpat', 'localidades': localidades_raw})
             s['status'] = 'esperando_localidad_fedpat'
             model_event.clear()
@@ -190,63 +162,41 @@ def run(session_id, sessions, dni, anio, marca, modelo_busqueda, localidad, sexo
             localidad_index = s.get('localidad_index_fedpat') or 0
             localidad_elegida = localidades_raw[localidad_index]
             log(f'Localidad seleccionada: {localidad_elegida["texto"]}')
-            li_id = localidad_elegida['id']
 
-            clicked = False
-            # 1) Click normal de Playwright por id del LI
-            if li_id:
-                try:
-                    frame_loc.click(f'li[id="{li_id}"]', timeout=4000)
-                    clicked = True
-                except Exception:
-                    pass
-            # 2) Eventos de mouse completos por JS (mouseover/down/up/click)
-            if not clicked:
-                try:
-                    ok = frame_loc.evaluate("""
-                        (args) => {
-                            let li = null;
-                            if (args.liId) li = document.getElementById(args.liId);
-                            if (!li) {
-                                const cont = document.querySelector('[id*="ajaxAuto" i]');
-                                if (cont) {
-                                    const items = Array.from(cont.querySelectorAll('li'))
-                                        .filter(x => x.innerText.trim().length > 1);
-                                    li = items[args.idx] || null;
-                                }
-                            }
-                            if (!li) return false;
-                            for (const tipo of ['mouseover', 'mousedown', 'mouseup', 'click']) {
-                                li.dispatchEvent(new MouseEvent(tipo, { bubbles: true, cancelable: true, view: window }));
-                            }
-                            return true;
-                        }
-                    """, {'liId': li_id, 'idx': localidad_elegida['idx']})
-                    clicked = bool(ok)
-                except Exception:
-                    pass
-            # 3) Último recurso: navegar con teclado (flecha abajo + Enter)
-            if not clicked:
-                log('Click falló, intentando selección por teclado...')
-                page.click('input#nombreLocalidad')
-                for _ in range(localidad_elegida['idx'] + 1):
-                    page.keyboard.press('ArrowDown')
-                    time.sleep(0.3)
-                page.keyboard.press('Enter')
-
+            # Aplicar la selección igual que lo hace ajaxtags al clickear una
+            # opción del dropdown: el input recibe el texto, el select oculto
+            # #localidad recibe el código, y se disparan las funciones que la
+            # página engancha a la selección.
+            page.evaluate("""
+                (sel) => {
+                    const input = document.getElementById('nombreLocalidad');
+                    if (input) input.value = sel.texto;
+                    const hidden = document.getElementById('nombreLocalidadSelected');
+                    if (hidden) hidden.value = sel.texto;
+                    const combo = document.getElementById('localidad');
+                    if (combo) {
+                        combo.options.length = 0;
+                        combo.options[0] = new Option(sel.texto, sel.id, true, true);
+                        combo.selectedIndex = 0;
+                    }
+                    const cod = document.getElementById('codigoLocalidadInput');
+                    if (cod) cod.value = sel.id;
+                    try { if (typeof post_select_localidad === 'function') post_select_localidad(); } catch (e) {}
+                    try { if (typeof selected_localidad_autocomplete === 'function') selected_localidad_autocomplete(); } catch (e) {}
+                    return true;
+                }
+            """, {'texto': localidad_elegida['texto'], 'id': localidad_elegida['id']})
             time.sleep(2)
             try:
                 valor_final = page.input_value('input#nombreLocalidad')
-                log(f'Campo localidad quedó en: "{valor_final}"')
+                codigo = page.evaluate(
+                    "() => { const c = document.getElementById('codigoLocalidadInput'); return c ? c.value : ''; }"
+                )
+                log(f'Localidad aplicada: "{valor_final}" (código {codigo})')
             except Exception:
                 pass
         else:
-            try:
-                diag = page.evaluate(_js_diagnostico)
-                log(f'[Diagnóstico localidad final] {json.dumps(diag, ensure_ascii=False)[:900]}')
-            except Exception:
-                pass
-            log(f'Sin opciones de autocomplete para localidad, continuando con: {localidad}')
+            log(f'Sin opciones de localidad, continuando con: {localidad}')
 
         log('Abriendo menu Riesgo...')
         page.click('span.nombreParaItemNavigato:has-text("Riesgo")')
