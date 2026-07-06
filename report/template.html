@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  @page { size: A4 landscape; margin: 0; }
+
+  body {
+    font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+    font-size: 11px;
+    color: #1a2472;
+    background: white;
+    width: 297mm;
+    height: 210mm;
+    overflow: hidden;
+  }
+
+  .page {
+    width: 297mm;
+    height: 210mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: #1a2472;
+    padding: 0;
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    height: 72px;
+  }
+
+  .header-logo-box {
+    background: white;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    border-radius: 0 0 16px 0;
+    min-width: 260px;
+  }
+
+  .header-logo-box img {
+    height: 46px;
+    width: auto;
+    display: block;
+  }
+
+  .header-divider {
+    width: 3px;
+    background: #c62828;
+    margin: 12px 0;
+  }
+
+  .header-right {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 28px;
+  }
+
+  .doc-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    line-height: 1.2;
+  }
+
+  .doc-subtitle {
+    font-size: 9px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  .header-date {
+    text-align: right;
+  }
+
+  .date-label {
+    font-size: 8px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .date-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    margin-top: 3px;
+  }
+
+  /* ── VEHICLE BAR ── */
+  .vehicle-bar {
+    background: #f4f6fb;
+    border-bottom: 2px solid #dde3f0;
+    padding: 8px 28px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .vehicle-name {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1a2472;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-right: 20px;
+    margin-right: 20px;
+    border-right: 2px solid #c62828;
+  }
+
+  .info-chip {
+    display: flex;
+    flex-direction: column;
+    padding: 0 18px;
+    border-right: 1px solid #dde3f0;
+  }
+
+  .info-chip:last-child { border-right: none; }
+
+  .chip-label {
+    font-size: 7.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #607d8b;
+  }
+
+  .chip-value {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #1a2472;
+    margin-top: 1px;
+  }
+
+  .spacer { flex: 1; }
+
+  /* ── CONTENT ── */
+  .content {
+    flex: 1;
+    padding: 12px 28px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .section-label {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #607d8b;
+  }
+
+  /* ── TABLE ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1.5px solid #dde3f0;
+  }
+
+  thead th {
+    padding: 9px 16px;
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 2px solid rgba(0,0,0,0.12);
+  }
+
+  th.th-cobertura {
+    background: #1a2472;
+    color: white;
+    text-align: left;
+    width: 34%;
+  }
+
+  {% for a in aseguradoras %}
+  th.th-ins-{{ loop.index }} {
+    background: {{ colores[a]['header'] }};
+    color: white;
+    text-align: center;
+  }
+  {% endfor %}
+
+  tbody tr td {
+    padding: 7.5px 16px;
+    border-bottom: 1px solid #edf1f7;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) td { background: #f9fafd; }
+  tbody tr:nth-child(odd)  td { background: white; }
+
+  td.td-nombre {
+    font-weight: 600;
+    color: #1a2472;
+    font-size: 11px;
+  }
+
+  .td-deducible-txt {
+    font-size: 8.5px;
+    font-weight: 500;
+    color: #9aa8c4;
+    display: block;
+    margin-top: 2px;
+  }
+
+  td.td-precio {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4a5568;
+  }
+
+  td.td-precio.es-mejor {
+    font-weight: 800;
+    font-size: 12px;
+  }
+
+  {% for a in aseguradoras %}
+  td.td-precio.es-mejor.mejor-{{ loop.index }} {
+    color: {{ colores[a]['text'] }};
+    background: {{ colores[a]['light'] }} !important;
+  }
+  {% endfor %}
+
+  .badge-mejor {
+    display: inline-block;
+    font-size: 7px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 5px;
+    vertical-align: middle;
+    color: white;
+    letter-spacing: 0.3px;
+  }
+
+  {% for a in aseguradoras %}
+  .badge-mejor.badge-{{ loop.index }} { background: {{ colores[a]['header'] }}; }
+  {% endfor %}
+
+  td.td-na {
+    text-align: center;
+    color: #c8d0e0;
+    font-size: 14px;
+    font-weight: 300;
+  }
+
+  /* ── BEST SUMMARY ── */
+  .best-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .best-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 18px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    flex: 1;
+  }
+
+  {% for a in aseguradoras %}
+  .best-summary.winner-{{ loop.index }} {
+    background: {{ colores[a]['light'] }};
+    border-color: {{ colores[a]['header'] }};
+  }
+  {% endfor %}
+
+  .star-icon { font-size: 20px; }
+
+  .best-text h3 {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  {% for a in aseguradoras %}
+  .best-text.color-{{ loop.index }} h3 { color: {{ colores[a]['text'] }}; }
+  {% endfor %}
+
+  .best-text p {
+    font-size: 9.5px;
+    font-weight: 500;
+    color: #607d8b;
+    margin-top: 2px;
+  }
+
+  .disclaimer {
+    font-size: 8.5px;
+    font-weight: 400;
+    color: #9aa8c4;
+    text-align: right;
+    max-width: 320px;
+    line-height: 1.5;
+    padding-left: 20px;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    background: #1a2472;
+    padding: 6px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 16px;
+  }
+
+  .footer-logo-box {
+    background: white;
+    border-radius: 6px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .footer-logo-box img {
+    height: 28px;
+    width: auto;
+    display: block;
+  }
+
+  .footer-chips {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .ins-chip {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  {% for a in aseguradoras %}
+  .ins-chip-{{ loop.index }} { background: {{ colores[a]['header'] }}bb; }
+  {% endfor %}
+
+  .footer-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.2px;
+  }
+
+  .contact-icon {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+
+  .no-data {
+    text-align: center;
+    padding: 28px;
+    color: #9aa8c4;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo-box">
+      {% if logo_b64 %}
+      <img src="data:image/jpeg;base64,{{ logo_b64 }}" alt="Siluseg" />
+      {% else %}
+      <span style="font-size:22px;font-weight:900;color:#1a2472;letter-spacing:-1px;">SILUSEG</span>
+      {% endif %}
+    </div>
+    <div class="header-divider"></div>
+    <div class="header-right">
+      <div>
+        <div class="doc-title">Cotización Comparativa</div>
+        <div class="doc-subtitle">Automotor — Análisis de coberturas</div>
+      </div>
+      <div class="header-date">
+        <div class="date-label">Fecha</div>
+        <div class="date-value">{{ fecha }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHICLE BAR -->
+  <div class="vehicle-bar">
+    <div class="vehicle-name">{{ vehiculo }}</div>
+    <div class="info-chip">
+      <span class="chip-label">Año</span>
+      <span class="chip-value">{{ anio }}</span>
+    </div>
+    {% if capital %}
+    <div class="info-chip">
+      <span class="chip-label">Capital asegurado</span>
+      <span class="chip-value">{{ capital }}</span>
+    </div>
+    {% endif %}
+    <div class="spacer"></div>
+    {% if cliente %}
+    <div class="info-chip">
+      <span class="chip-label">Cliente</span>
+      <span class="chip-value">{{ cliente }}</span>
+    </div>
+    {% endif %}
+    {% if dni %}
+    <div class="info-chip">
+      <span class="chip-label">DNI</span>
+      <span class="chip-value">{{ dni }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <div class="section-label">Comparativa de coberturas</div>
+
+    {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th class="th-cobertura">Cobertura</th>
+          {% for a in aseguradoras %}
+          <th class="th-ins-{{ loop.index }}">{{ a }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="td-nombre">
+            {{ row.cobertura }}
+            {% if row.deducible %}
+            <span class="td-deducible-txt">{{ row.deducible }}</span>
+            {% endif %}
+          </td>
+          {% for a in aseguradoras %}
+            {% set precio = row.precios.get(a) %}
+            {% set idx = loop.index %}
+            {% if precio %}
+              {% if a == row.mejor %}
+              <td class="td-precio es-mejor mejor-{{ idx }}">
+                {{ precio }}
+                <span class="badge-mejor badge-{{ idx }}">✓ MEJOR</span>
+              </td>
+              {% else %}
+              <td class="td-precio">{{ precio }}</td>
+              {% endif %}
+            {% else %}
+            <td class="td-na">—</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- BEST SUMMARY -->
+    {% if mejor_general %}
+    <div class="best-row">
+      {% for a in aseguradoras %}
+        {% if a == mejor_general %}
+      <div class="best-summary winner-{{ loop.index }}">
+        <div class="star-icon">★</div>
+        <div class="best-text color-{{ loop.index }}">
+          <h3>Mejor opción: {{ mejor_general }}</h3>
+          <p>Precio más bajo en {{ mejor_wins }} de {{ total }} coberturas comparadas</p>
+        </div>
+      </div>
+        {% endif %}
+      {% endfor %}
+      <div class="disclaimer">
+        Precios en pesos / mes. Sujetos a aceptación y condiciones de póliza.<br>
+        Válidos a la fecha de emisión. Para mayor información consultá con tu asesor.
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="no-data">No se encontraron coberturas para comparar.</div>
+    {% endif %}
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-logo-box">
+      {% if logo_b64 %}
+      <img src="data:image/jpeg;base64,{{ logo_b64 }}" alt="Siluseg" />
+      {% else %}
+      <span style="font-size:13px;font-weight:900;color:#1a2472;">SILUSEG</span>
+      {% endif %}
+    </div>
+    <div class="footer-chips">
+      {% for a in aseguradoras %}
+      <span class="ins-chip ins-chip-{{ loop.index }}">{{ a }}</span>
+      {% endfor %}
+    </div>
+    <div class="footer-contact">
+      <div class="contact-item">
+        <span class="contact-icon">🌐</span>
+        www.siluseg.com.ar
+      </div>
+      <div class="contact-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="11" height="11" style="flex-shrink:0;">
+          <path fill="#25D366" d="M16 0C7.163 0 0 7.163 0 16c0 2.822.736 5.472 2.027 7.77L0 32l8.437-2.01A15.93 15.93 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0z"/>
+          <path fill="white" d="M23.3 19.93c-.32-.16-1.894-.934-2.188-1.04-.293-.107-.507-.16-.72.16-.214.32-.828 1.04-1.015 1.254-.187.213-.373.24-.693.08-.32-.16-1.35-.498-2.572-1.587-.95-.847-1.592-1.893-1.778-2.213-.187-.32-.02-.493.14-.652.144-.143.32-.373.48-.56.16-.186.213-.32.32-.533.107-.214.053-.4-.027-.56-.08-.16-.72-1.734-.986-2.374-.26-.623-.523-.538-.72-.548l-.613-.01c-.213 0-.56.08-.853.4-.293.32-1.12 1.094-1.12 2.667s1.147 3.094 1.307 3.307c.16.213 2.254 3.44 5.461 4.827.763.33 1.358.526 1.822.673.766.243 1.464.209 2.015.127.615-.092 1.894-.774 2.16-1.522.267-.747.267-1.387.187-1.52-.08-.134-.293-.214-.613-.374z"/>
+        </svg>
+        +54 9 11 3450-1751
+      </div>
+      <div class="contact-item">
+        <span class="contact-icon">✉</span>
+        info@siluseg.com.ar
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
